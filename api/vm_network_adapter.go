@@ -642,6 +642,9 @@ if (!$vmNetworkAdaptersObject){
 	throw "VM network adapter does not exist - 0"
 }
 
+if ($vmNetworkAdapter.SwitchName) {
+	Get-VMNetworkAdapter -VmName '{{.VmName}}' -Name "$($vmNetworkAdapter.Name)" | Connect-VMNetworkAdapter -SwitchName "$($vmNetworkAdapter.SwitchName)"
+}
 
 $SetVmNetworkAdapterArgs = @{}
 $vmNetworkAdapter.psobject.properties | ForEach-Object {
