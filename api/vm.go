@@ -315,12 +315,6 @@ var createVmTemplate = template.Must(template.New("CreateVm").Parse(`
 $ErrorActionPreference = 'Stop'
 Get-Vm | Out-Null
 $vm = '{{.VmJson}}' | ConvertFrom-Json
-$automaticCriticalErrorAction = [Microsoft.HyperV.PowerShell.CriticalErrorAction]$vm.AutomaticCriticalErrorAction
-$automaticStartAction = [Microsoft.HyperV.PowerShell.StartAction]$vm.AutomaticStartAction
-$automaticStopAction = [Microsoft.HyperV.PowerShell.StopAction]$vm.AutomaticStopAction
-$checkpointType = [Microsoft.HyperV.PowerShell.CheckpointType]$vm.CheckpointType
-$lockOnDisconnect = [Microsoft.HyperV.PowerShell.OnOffState]$vm.LockOnDisconnect
-$allowUnverifiedPaths = $true #Not a property set on the vm object, skips validation when changing path
 
 $vmObject = Get-VM | ?{$_.Name -eq $vm.Name}
 
@@ -337,101 +331,51 @@ $NewVmArgs = @{
 
 New-Vm @NewVmArgs
 
+`))
+
+func (c *HypervClient) CreateVm(
+	name string,
+	generation int,
+	memoryStartupBytes int64,
+) (err error) {
+	vmJson, err := json.Marshal(vm{
+		Name:               name,
+		Generation:         generation,
+		MemoryStartupBytes: memoryStartupBytes,
+	})
+
+	err = c.runFireAndForgetScript(createVmTemplate, createVmArgs{
+		VmJson: string(vmJson),
+	})
+
+	return err
+}
+
+type prepareCreateVmArgs struct {
+	VmJson string
+}
+
+var prepareCreatedVmTemplate = template.Must(template.New("CreateVm").Parse(`
+$ErrorActionPreference = 'Stop'
+Get-Vm | Out-Null
+$vm = '{{.VmJson}}' | ConvertFrom-Json
+
 #Delete any auto-generated network adapter
 Get-VMNetworkAdapter -VmName $vm.Name | Remove-VMNetworkAdapter
 
 #Delete any auto-generated dvd drive
 Get-VMDvdDrive -VmName $vm.Name | Remove-VMDvdDrive
 
-#Set static and dynamic properties can't be set at the same time, but we need the values to match terraforms state
-$SetVmArgs = @{}
-$SetVmArgs.Name=$vm.Name
-$SetVmArgs.StaticMemory=$true
-$SetVmArgs.MemoryStartupBytes=$vm.MemoryStartupBytes
-Set-Vm @SetVmArgs
-
-$SetVmArgs = @{}
-$SetVmArgs.Name=$vm.Name
-$SetVmArgs.DynamicMemory=$true
-$SetVmArgs.MemoryMinimumBytes=$vm.MemoryMinimumBytes
-$SetVmArgs.MemoryMaximumBytes=$vm.MemoryMaximumBytes
-Set-Vm @SetVmArgs
-
-$SetVmArgs = @{}
-$SetVmArgs.Name=$vm.Name
-$SetVmArgs.GuestControlledCacheTypes=$vm.GuestControlledCacheTypes
-$SetVmArgs.LowMemoryMappedIoSpace=$vm.LowMemoryMappedIoSpace
-$SetVmArgs.HighMemoryMappedIoSpace=$vm.HighMemoryMappedIoSpace
-$SetVmArgs.ProcessorCount=$vm.ProcessorCount
-$SetVmArgs.AutomaticStartAction=$automaticStartAction
-$SetVmArgs.AutomaticStopAction=$automaticStopAction
-$SetVmArgs.AutomaticStartDelay=$vm.AutomaticStartDelay
-$SetVmArgs.AutomaticCriticalErrorAction=$automaticCriticalErrorAction
-$SetVmArgs.AutomaticCriticalErrorActionTimeout=$vm.AutomaticCriticalErrorActionTimeout
-$SetVmArgs.LockOnDisconnect=$lockOnDisconnect
-$SetVmArgs.Notes=$vm.Notes
-$SetVmArgs.SnapshotFileLocation=$vm.SnapshotFileLocation
-$SetVmArgs.SmartPagingFilePath=$vm.SmartPagingFilePath
-$SetVmArgs.CheckpointType=$checkpointType
-$SetVmArgs.AllowUnverifiedPaths=$allowUnverifiedPaths
-if ($vm.StaticMemory) {
-	$SetVmArgs.StaticMemory = $vm.StaticMemory
-} else {
-	$SetVmArgs.DynamicMemory = $vm.DynamicMemory
-}
-
-Set-Vm @SetVmArgs
-
 `))
 
-func (c *HypervClient) CreateVm(
+func (c *HypervClient) PrepareCreatedVm(
 	name string,
-	generation int,
-	automaticCriticalErrorAction CriticalErrorAction,
-	automaticCriticalErrorActionTimeout int32,
-	automaticStartAction StartAction,
-	automaticStartDelay int32,
-	automaticStopAction StopAction,
-	checkpointType CheckpointType,
-	dynamicMemory bool,
-	guestControlledCacheTypes bool,
-	highMemoryMappedIoSpace int64,
-	lockOnDisconnect OnOffState,
-	lowMemoryMappedIoSpace int32,
-	memoryMaximumBytes int64,
-	memoryMinimumBytes int64,
-	memoryStartupBytes int64,
-	notes string,
-	processorCount int64,
-	smartPagingFilePath string,
-	snapshotFileLocation string,
-	staticMemory bool,
 ) (err error) {
 	vmJson, err := json.Marshal(vm{
-		Name:                                name,
-		Generation:                          generation,
-		AutomaticCriticalErrorAction:        automaticCriticalErrorAction,
-		AutomaticCriticalErrorActionTimeout: automaticCriticalErrorActionTimeout,
-		AutomaticStartAction:                automaticStartAction,
-		AutomaticStartDelay:                 automaticStartDelay,
-		AutomaticStopAction:                 automaticStopAction,
-		CheckpointType:                      checkpointType,
-		DynamicMemory:                       dynamicMemory,
-		GuestControlledCacheTypes:           guestControlledCacheTypes,
-		HighMemoryMappedIoSpace:             highMemoryMappedIoSpace,
-		LockOnDisconnect:                    lockOnDisconnect,
-		LowMemoryMappedIoSpace:              lowMemoryMappedIoSpace,
-		MemoryMaximumBytes:                  memoryMaximumBytes,
-		MemoryMinimumBytes:                  memoryMinimumBytes,
-		MemoryStartupBytes:                  memoryStartupBytes,
-		Notes:                               notes,
-		ProcessorCount:                      processorCount,
-		SmartPagingFilePath:                 smartPagingFilePath,
-		SnapshotFileLocation:                snapshotFileLocation,
-		StaticMemory:                        staticMemory,
+		Name: name,
 	})
 
-	err = c.runFireAndForgetScript(createVmTemplate, createVmArgs{
+	err = c.runFireAndForgetScript(prepareCreatedVmTemplate, createVmArgs{
 		VmJson: string(vmJson),
 	})
 
