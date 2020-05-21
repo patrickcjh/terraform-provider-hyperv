@@ -5,6 +5,7 @@ default: build
 
 build: fmtcheck
 	go install
+	go build -o ./bin/terraform-provider-hyperv
 
 test: fmtcheck
 	go test -i $(TEST) || exit 1

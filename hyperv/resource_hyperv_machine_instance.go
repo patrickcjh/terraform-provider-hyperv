@@ -2,10 +2,11 @@ package hyperv
 
 import (
 	"fmt"
+	"log"
+
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
 	"github.com/taliesins/terraform-provider-hyperv/api"
-	"log"
 )
 
 const MaxUint32 = 4294967295
