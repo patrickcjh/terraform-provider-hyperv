@@ -191,13 +191,19 @@ func resourceHyperVNetworkSwitchCreate(d *schema.ResourceData, meta interface{})
 		return fmt.Errorf("[ERROR][hyperv][create] defaultQueueVmmqQueuePairs must be greater then 0")
 	}
 
-	err = c.CreateVMSwitch(switchName, notes, allowManagementOS, embeddedTeamingEnabled, iovEnabled, packetDirectEnabled, bandwidthReservationMode, switchType, netAdapterNames, defaultFlowMinimumBandwidthAbsolute, defaultFlowMinimumBandwidthWeight, defaultQueueVmmqEnabled, defaultQueueVmmqQueuePairs, defaultQueueVrssEnabled)
+	err = c.CreateVMSwitch(switchName, allowManagementOS, embeddedTeamingEnabled, iovEnabled, packetDirectEnabled, bandwidthReservationMode, switchType, netAdapterNames)
 
 	if err != nil {
 		return err
 	}
 
 	d.SetId(switchName)
+
+	err = c.UpdateVMSwitch(switchName, notes, allowManagementOS, switchType, netAdapterNames, defaultFlowMinimumBandwidthAbsolute, defaultFlowMinimumBandwidthWeight, defaultQueueVmmqEnabled, defaultQueueVmmqQueuePairs, defaultQueueVrssEnabled)
+	if err != nil {
+		return err
+	}
+
 	log.Printf("[INFO][hyperv][create] created hyperv switch: %#v", d)
 
 	return resourceHyperVNetworkSwitchRead(d, meta)

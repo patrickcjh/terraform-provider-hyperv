@@ -176,32 +176,10 @@ if ($NetAdapterNames) {
 }
 New-VMSwitch @NewVmSwitchArgs
 
-$switchObject = Get-VMSwitch | ?{$_.Name -eq $vmSwitch.Name}
-
-if (!$switchObject){
-	throw "Switch does not exist - $($vmSwitch.Name)"
-}
-
-$SetVmSwitchArgs = @{}
-$SetVmSwitchArgs.Name=$vmSwitch.Name
-$SetVmSwitchArgs.Notes=$vmSwitch.Notes
-if (($minimumBandwidthMode -eq [Microsoft.HyperV.PowerShell.VMSwitchBandwidthMode]::Absolute) -and $switchObject.DefaultFlowMinimumBandwidthAbsolute -ne $vmSwitch.DefaultFlowMinimumBandwidthAbsolute) {
-	$SetVmSwitchArgs.DefaultFlowMinimumBandwidthAbsolute=$vmSwitch.DefaultFlowMinimumBandwidthAbsolute
-}
-if ((($minimumBandwidthMode -eq [Microsoft.HyperV.PowerShell.VMSwitchBandwidthMode]::Weight) -or (($minimumBandwidthMode -eq [Microsoft.HyperV.PowerShell.VMSwitchBandwidthMode]::Default) -and (-not ($vmSwitch.IovEnabled)))) -and $switchObject.DefaultFlowMinimumBandwidthWeight -ne $vmSwitch.DefaultFlowMinimumBandwidthWeight) {
-	$SetVmSwitchArgs.DefaultFlowMinimumBandwidthWeight=$vmSwitch.DefaultFlowMinimumBandwidthWeight
-}
-$SetVmSwitchArgs.DefaultQueueVmmqEnabled=$vmSwitch.DefaultQueueVmmqEnabled
-$SetVmSwitchArgs.DefaultQueueVmmqQueuePairs=$vmSwitch.DefaultQueueVmmqQueuePairs
-$SetVmSwitchArgs.DefaultQueueVrssEnabled=$vmSwitch.DefaultQueueVrssEnabled
-
-Set-VMSwitch @SetVmSwitchArgs
-
 `))
 
 func (c *HypervClient) CreateVMSwitch(
 	name string,
-	notes string,
 	allowManagementOS bool,
 	embeddedTeamingEnabled bool,
 	iovEnabled bool,
@@ -209,28 +187,17 @@ func (c *HypervClient) CreateVMSwitch(
 	bandwidthReservationMode VMSwitchBandwidthMode,
 	switchType VMSwitchType,
 	netAdapterNames []string,
-	defaultFlowMinimumBandwidthAbsolute int64,
-	defaultFlowMinimumBandwidthWeight int64,
-	defaultQueueVmmqEnabled bool,
-	defaultQueueVmmqQueuePairs int32,
-	defaultQueueVrssEnabled bool,
 ) (err error) {
 
 	vmSwitchJson, err := json.Marshal(vmSwitch{
-		Name:                                name,
-		Notes:                               notes,
-		AllowManagementOS:                   allowManagementOS,
-		EmbeddedTeamingEnabled:              embeddedTeamingEnabled,
-		IovEnabled:                          iovEnabled,
-		PacketDirectEnabled:                 packetDirectEnabled,
-		BandwidthReservationMode:            bandwidthReservationMode,
-		SwitchType:                          switchType,
-		NetAdapterNames:                     netAdapterNames,
-		DefaultFlowMinimumBandwidthAbsolute: defaultFlowMinimumBandwidthAbsolute,
-		DefaultFlowMinimumBandwidthWeight:   defaultFlowMinimumBandwidthWeight,
-		DefaultQueueVmmqEnabled:             defaultQueueVmmqEnabled,
-		DefaultQueueVmmqQueuePairs:          defaultQueueVmmqQueuePairs,
-		DefaultQueueVrssEnabled:             defaultQueueVrssEnabled,
+		Name:                     name,
+		AllowManagementOS:        allowManagementOS,
+		EmbeddedTeamingEnabled:   embeddedTeamingEnabled,
+		IovEnabled:               iovEnabled,
+		PacketDirectEnabled:      packetDirectEnabled,
+		BandwidthReservationMode: bandwidthReservationMode,
+		SwitchType:               switchType,
+		NetAdapterNames:          netAdapterNames,
 	})
 
 	err = c.runFireAndForgetScript(createVMSwitchTemplate, createVMSwitchArgs{
