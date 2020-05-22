@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"log"
 
+	"os"
+
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"github.com/taliesins/terraform-provider-hyperv/api"
-	"os"
 )
 
 func resourceHyperVVhd() *schema.Resource {
@@ -165,6 +166,8 @@ func resourceHyperVVhdCreate(d *schema.ResourceData, meta interface{}) (err erro
 		return err
 	}
 
+	d.SetId(path)
+
 	if size > 0 && parentPath == "" {
 		//Update vhd size
 		err = c.ResizeVhd(path, size)
@@ -173,8 +176,6 @@ func resourceHyperVVhdCreate(d *schema.ResourceData, meta interface{}) (err erro
 			return err
 		}
 	}
-
-	d.SetId(path)
 
 	log.Printf("[INFO][hyperv][create] created hyperv vhd: %#v", d)
 
