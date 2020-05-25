@@ -7,6 +7,15 @@ build: fmtcheck
 	go install
 	go build -o ./bin/terraform-provider-hyperv
 
+init:
+	bash -c "cd ./bin && terraform init -force-copy"
+
+apply:
+	bash -c "cd ./bin && terraform apply -auto-approve"
+
+destroy:
+	bash -c "cd ./bin && terraform destroy -auto-approve"
+
 test: fmtcheck
 	go test -i $(TEST) || exit 1
 	echo $(TEST) | \

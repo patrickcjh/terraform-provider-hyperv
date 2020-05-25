@@ -362,7 +362,7 @@ if (!(Test-Path -Path $vhd.Path)) {
 }
 `))
 
-func (c *HypervClient) CreateOrUpdateVhd(path string, source string, sourceVm string, sourceDisk int, vhdType VhdType, parentPath string, size uint64, blockSize uint32, logicalSectorSize uint32, physicalSectorSize uint32) (err error) {
+func (c *HypervClient) CreateVhd(path string, source string, sourceVm string, sourceDisk int, vhdType VhdType, parentPath string, size uint64, blockSize uint32, logicalSectorSize uint32, physicalSectorSize uint32) (err error) {
 	vhdJson, err := json.Marshal(vhd{
 		Path:               path,
 		VhdType:            vhdType,

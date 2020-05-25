@@ -5,12 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	pool "github.com/jolestar/go-commons-pool/v2"
-	"github.com/masterzen/winrm"
-	"github.com/taliesins/terraform-provider-hyperv/powershell"
 	"log"
 	"strings"
 	"text/template"
+
+	pool "github.com/jolestar/go-commons-pool/v2"
+	"github.com/masterzen/winrm"
+	"github.com/taliesins/terraform-provider-hyperv/powershell"
 )
 
 type HypervClient struct {

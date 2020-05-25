@@ -730,6 +730,18 @@ func resourceHyperVMachineInstanceCreate(data *schema.ResourceData, meta interfa
 		return err
 	}
 
+	if generation > 1 {
+		firmwares, err := api.ExpandVmFirmwares(data)
+		if err != nil {
+			return err
+		}
+
+		err = client.CreateOrUpdateVmFirmwares(name, firmwares)
+		if err != nil {
+			return err
+		}
+	}
+
 	waitForStateTimeout, waitForStatePollPeriod, err := api.ExpandVmStateWaitForState(data)
 	if err != nil {
 		return err
@@ -911,6 +923,17 @@ func resourceHyperVMachineInstanceUpdate(data *schema.ResourceData, meta interfa
 
 	generation := (data.Get("generation")).(int)
 
+	waitForStateTimeout, waitForStatePollPeriod, err := api.ExpandVmStateWaitForState(data)
+	if err != nil {
+		return err
+	}
+
+	// turn off machine before update will be completed
+	err = client.UpdateVmState(name, waitForStateTimeout, waitForStatePollPeriod, api.VmState_Off)
+	if err != nil {
+		return err
+	}
+
 	if data.HasChange("automatic_critical_error_action") ||
 		data.HasChange("automatic_critical_error_action_timeout") ||
 		data.HasChange("automatic_start_action") ||
@@ -1041,17 +1064,10 @@ func resourceHyperVMachineInstanceUpdate(data *schema.ResourceData, meta interfa
 		}
 	}
 
-	if data.HasChange("state") {
-		waitForStateTimeout, waitForStatePollPeriod, err := api.ExpandVmStateWaitForState(data)
-		if err != nil {
-			return err
-		}
-
-		state := api.ToVmState((data.Get("state")).(string))
-		err = client.UpdateVmState(name, waitForStateTimeout, waitForStatePollPeriod, state)
-		if err != nil {
-			return err
-		}
+	state := api.ToVmState((data.Get("state")).(string))
+	err = client.UpdateVmState(name, waitForStateTimeout, waitForStatePollPeriod, state)
+	if err != nil {
+		return err
 	}
 
 	log.Printf("[INFO][hyperv][update] updated hyperv machine: %#v", data)

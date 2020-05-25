@@ -3,8 +3,7 @@ package hyperv
 import (
 	"fmt"
 	"log"
-
-	"os"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"github.com/taliesins/terraform-provider-hyperv/api"
@@ -18,6 +17,10 @@ func resourceHyperVVhd() *schema.Resource {
 		Delete: resourceHyperVVhdDelete,
 
 		Schema: map[string]*schema.Schema{
+			"name": {
+				Type:     schema.TypeString,
+				Required: true,
+			},
 			"path": {
 				Type:     schema.TypeString,
 				Required: true,
@@ -63,6 +66,7 @@ func resourceHyperVVhd() *schema.Resource {
 			"parent_path": {
 				Type:     schema.TypeString,
 				Optional: true,
+				Default:  "",
 				ConflictsWith: []string{
 					"source",
 					"source_vm",
@@ -73,7 +77,8 @@ func resourceHyperVVhd() *schema.Resource {
 			"size": {
 				Type:     schema.TypeInt,
 				Optional: true,
-				Default:  0,
+				Computed: true,
+				Default:  nil,
 				ConflictsWith: []string{
 					"parent_path",
 				},
@@ -81,7 +86,8 @@ func resourceHyperVVhd() *schema.Resource {
 			"block_size": {
 				Type:     schema.TypeInt,
 				Optional: true,
-				Default:  0,
+				Computed: true,
+				Default:  nil,
 				ConflictsWith: []string{
 					"source",
 					"source_vm",
@@ -91,7 +97,8 @@ func resourceHyperVVhd() *schema.Resource {
 			"logical_sector_size": {
 				Type:     schema.TypeInt,
 				Optional: true,
-				Default:  0,
+				Computed: true,
+				Default:  nil,
 				ConflictsWith: []string{
 					"source",
 					"source_vm",
@@ -102,7 +109,8 @@ func resourceHyperVVhd() *schema.Resource {
 			"physical_sector_size": {
 				Type:     schema.TypeInt,
 				Optional: true,
-				Default:  0,
+				Computed: true,
+				Default:  nil,
 				ConflictsWith: []string{
 					"source",
 					"source_vm",
@@ -110,31 +118,8 @@ func resourceHyperVVhd() *schema.Resource {
 				},
 				ValidateFunc: IntInSlice([]int{0, 512, 4096}),
 			},
-			"exists": {
-				Type:     schema.TypeBool,
-				Computed: true,
-			},
 		},
-
-		CustomizeDiff: customizeDiffForVhd,
 	}
-}
-
-func customizeDiffForVhd(diff *schema.ResourceDiff, i interface{}) error {
-	path := diff.Get("path").(string)
-
-	if _, err := os.Stat(path); err != nil {
-		if os.IsNotExist(err) {
-			// file does not exist
-			diff.SetNewComputed("exists")
-			return nil
-		} else {
-			// other error
-			return err
-		}
-	}
-
-	return nil
 }
 
 func resourceHyperVVhdCreate(d *schema.ResourceData, meta interface{}) (err error) {
@@ -150,6 +135,7 @@ func resourceHyperVVhdCreate(d *schema.ResourceData, meta interface{}) (err erro
 		return fmt.Errorf("[ERROR][hyperv][create] path argument is required")
 	}
 
+	name := d.Get("name").(string)
 	source := (d.Get("source")).(string)
 	sourceVm := (d.Get("source_vm")).(string)
 	sourceDisk := (d.Get("source_disk")).(int)
@@ -160,13 +146,13 @@ func resourceHyperVVhdCreate(d *schema.ResourceData, meta interface{}) (err erro
 	logicalSectorSize := uint32((d.Get("logical_sector_size")).(int))
 	physicalSectorSize := uint32((d.Get("physical_sector_size")).(int))
 
-	err = c.CreateOrUpdateVhd(path, source, sourceVm, sourceDisk, vhdType, parentPath, size, blockSize, logicalSectorSize, physicalSectorSize)
+	err = c.CreateVhd(path, source, sourceVm, sourceDisk, vhdType, parentPath, size, blockSize, logicalSectorSize, physicalSectorSize)
 
 	if err != nil {
 		return err
 	}
 
-	d.SetId(path)
+	d.SetId(name)
 
 	if size > 0 && parentPath == "" {
 		//Update vhd size
@@ -199,15 +185,19 @@ func resourceHyperVVhdRead(d *schema.ResourceData, meta interface{}) (err error)
 		return err
 	}
 
-	if vhd.Path != "" {
+	if !strings.EqualFold(vhd.Path, path) {
 		log.Printf("[INFO][hyperv][read] unable to retrieved vhd: %+v", path)
-		d.Set("exists", false)
-	} else {
-		log.Printf("[INFO][hyperv][read] retrieved vhd: %+v", path)
-		d.Set("exists", true)
+		d.SetId("")
+		return nil
 	}
 
 	log.Printf("[INFO][hyperv][read] read hyperv vhd: %#v", d)
+	d.Set("vhd_type", vhd.VhdType.String())
+	d.Set("parent_path", vhd.ParentPath)
+	d.Set("size", vhd.Size)
+	d.Set("block_size", vhd.BlockSize)
+	d.Set("logical_sector_size", vhd.LogicalSectorSize)
+	d.Set("physical_sector_size", vhd.PhysicalSectorSize)
 
 	return nil
 }
@@ -234,25 +224,29 @@ func resourceHyperVVhdUpdate(d *schema.ResourceData, meta interface{}) (err erro
 	logicalSectorSize := uint32((d.Get("logical_sector_size")).(int))
 	physicalSectorSize := uint32((d.Get("physical_sector_size")).(int))
 
-	exists := (d.Get("exists")).(bool)
+	if d.HasChange("path") || d.HasChange("source") || d.HasChange("source_vm") || d.HasChange("source_disk") || d.HasChange("parent_path") {
 
-	if !exists || d.HasChange("path") || d.HasChange("source") || d.HasChange("source_vm") || d.HasChange("source_disk") || d.HasChange("parent_path") {
-		//delete it as its changed
-		err = c.CreateOrUpdateVhd(path, source, sourceVm, sourceDisk, vhdType, parentPath, size, blockSize, logicalSectorSize, physicalSectorSize)
+		err = c.CreateVhd(path, source, sourceVm, sourceDisk, vhdType, parentPath, size, blockSize, logicalSectorSize, physicalSectorSize)
 
 		if err != nil {
 			return err
 		}
 	}
 
-	if size > 0 && parentPath == "" {
-		if !exists || d.HasChange("size") {
-			//Update vhd size
-			err = c.ResizeVhd(path, size)
+	if d.HasChange("path") {
+		oldValue, _ := d.GetChange("path")
+		err = c.DeleteVhd(oldValue.(string))
+		if err != nil {
+			return err
+		}
+	}
 
-			if err != nil {
-				return err
-			}
+	if d.HasChange("size") && size > 0 && parentPath == "" {
+		//Update vhd size
+		err = c.ResizeVhd(path, size)
+
+		if err != nil {
+			return err
 		}
 	}
 
@@ -279,6 +273,8 @@ func resourceHyperVVhdDelete(d *schema.ResourceData, meta interface{}) (err erro
 	if err != nil {
 		return err
 	}
+
+	d.SetId("")
 
 	log.Printf("[INFO][hyperv][delete] deleted hyperv vhd: %#v", d)
 	return nil

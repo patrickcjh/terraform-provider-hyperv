@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"log"
 	"strconv"
 	"strings"
 	"text/template"
+
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
 
 type ConsoleModeType int
@@ -243,7 +244,7 @@ var getVmFirmwareTemplate = template.Must(template.New("GetVmFirmware").Parse(`
 $ErrorActionPreference = 'Stop'
 
 $vmFirmwareObject = Get-VMFirmware -VMName '{{.VmName}}' | %{ @{
-	EnableSecureBoot=             $_.EnableSecureBoot
+	EnableSecureBoot=             $_.SecureBoot
 	SecureBootTemplate=           $_.SecureBootTemplate
 	PreferredNetworkBootProtocol= $_.PreferredNetworkBootProtocol
 	ConsoleMode=                  $_.ConsoleMode
