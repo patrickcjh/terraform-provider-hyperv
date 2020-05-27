@@ -10,3 +10,5 @@ tfplanset
 /bin
 /c
 /examples/basic/.terraform.tfstate.lock.info
+terraform/terraform.tfvars
+terraform/terraform.d

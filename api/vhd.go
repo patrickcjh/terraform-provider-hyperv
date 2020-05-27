@@ -145,14 +145,14 @@ type vhd struct {
 	VhdFormat               VhdFormat
 }
 
-type createOrUpdateVhdArgs struct {
+type createVhdArgs struct {
 	Source     string
 	SourceVm   string
 	SourceDisk int
 	VhdJson    string
 }
 
-var createOrUpdateVhdTemplate = template.Must(template.New("CreateOrUpdateVhd").Parse(`
+var createVhdTemplate = template.Must(template.New("CreateOrUpdateVhd").Parse(`
 $ErrorActionPreference = 'Stop'
 
 Get-VM | Out-Null
@@ -179,75 +179,67 @@ function Expand-Downloads {
         [Parameter(Mandatory = $true, Position = 0)]
         [string]
         [Alias('Folder')]
-        $FolderPath
+		$FolderPath,
+		[Parameter(Mandatory = $true, Position = 1)]
+        [string]
+        $TargetPath
     )
     process {
 		Push-Location $FolderPath
 
-        get-item *.zip | % {
-			$tempPath = join-path $FolderPath "temp"
-
+        $tempPath = join-path $FolderPath "temp"
+        New-Item -ItemType Directory -Force -Path $tempPath
+        
+		try {
 			$7zPath = Get-7ZipPath
-			if ($7zPath) {
+			get-item *.zip | % {
+				if ($7zPath) {
+					$command = """$7zPath"" x ""$($_.FullName)"" -o""$tempPath""" 
+					& cmd.exe /C $command
+				} else {
+					Add-Type -AssemblyName System.IO.Compression.FileSystem
+					if (!(Test-Path $tempPath)) {
+						New-Item -ItemType Directory -Force -Path $tempPath
+					}
+					[System.IO.Compression.ZipFile]::ExtractToDirectory($_.FullName, $tempPath)
+				}
+				Remove-Item $_.FullName -Force
+			}
+
+			get-item *.7z | % {
+				if (-not $7zPath) {
+					throw "7z.exe needed"
+				}
 				$command = """$7zPath"" x ""$($_.FullName)"" -o""$tempPath""" 
 				& cmd.exe /C $command
-			} else {
-				Add-Type -AssemblyName System.IO.Compression.FileSystem
-    			if (!(Test-Path $tempPath)) {
-        			New-Item -ItemType Directory -Force -Path $tempPath
-    			}
-            	[System.IO.Compression.ZipFile]::ExtractToDirectory($_.FullName, $tempPath)
+				Remove-Item $_.FullName -Force
 			}
 
-            if (Test-Path "$tempPath\Virtual Hard Disks") {
-        		Move-Item "$tempPath\Virtual Hard Disks\*.*" $FolderPath
-			} else {
-				Move-Item "$tempPath\*.*" $FolderPath
-			}
+			get-item *.box | % {
+				if (-not $7zPath) {
+					throw "7z.exe needed"
+				}
+				$command = """$7zPath"" x ""$($_.FullName)"" -so | ""$7zPath"" x -aoa -si -ttar -o""$tempPath"""
+				& cmd.exe /C $command
+				Remove-Item $_.FullName -Force
+            }
+            
+            get-item *.vhdx | % {
+                Move-Item $_.FullName $TargetPath -Force
+            }
 
-			Remove-Item $tempPath -Force -Recurse
-			Remove-Item $_.FullName -Force
-        }
-
-        get-item *.7z | % {
-			$7zPath = Get-7ZipPath
-			if (-not $7zPath) {
- 				throw "7z.exe needed"
-			}
-			$tempPath = join-path $FolderPath "temp"
-			$command = """$7zPath"" x ""$($_.FullName)"" -o""$tempPath""" 
-			& cmd.exe /C $command
-
-			if (Test-Path "$tempPath\Virtual Hard Disks") {
-        		Move-Item "$tempPath\Virtual Hard Disks\*.*" $FolderPath
-			} else {
-				Move-Item "$tempPath\*.*" $FolderPath
-			}
-
-			Remove-Item $tempPath -Force -Recurse
-			Remove-Item $_.FullName -Force
-        }
-
-        get-item *.box | % {
-			$7zPath = Get-7ZipPath
-			if (-not $7zPath) {
- 				throw "7z.exe needed"
-			}
-			$tempPath = join-path $FolderPath "temp"
-			$command = """$7zPath"" x ""$($_.FullName)"" -so | ""$7zPath"" x -aoa -si -ttar -o""$tempPath"""
-			& cmd.exe /C $command
-
-			if (Test-Path "$tempPath\Virtual Hard Disks") {
-        		Move-Item "$tempPath\Virtual Hard Disks\*.*" $FolderPath
-			} else {
-				Move-Item "$tempPath\*.*" $FolderPath
-			}
-
-			Remove-Item $tempPath -Force -Recurse
-			Remove-Item $_.FullName -Force
-        }
-
-		Pop-Location
+            get-item *.vhd | % {
+                Move-Item $_.FullName $TargetPath -Force
+            }
+			
+			$sourceFolder = if (Test-Path "$tempPath\Virtual Hard Disks") {"$tempPath\Virtual Hard Disks"} else {$tempPath}
+			Get-ChildItem -Path $sourceFolder -Force | Select-Object -First 1 | Move-Item -Destination $TargetPath
+			
+		}
+		finally{
+            Pop-Location
+            Remove-Item $tempPath -Force -Recurse            
+		}		
     }
 }
 
@@ -297,67 +289,70 @@ function Test-Uri {
 }
 
 if (!(Test-Path -Path $vhd.Path)) {
-    $pathDirectory = [System.IO.Path]::GetDirectoryName($vhd.Path)
+	$tempPathDirectory = $vhd.Path + "_temp"
 
-    if (!(Test-Path $pathDirectory)) {
-        New-Item -ItemType Directory -Force -Path $pathDirectory
+    if (!(Test-Path $tempPathDirectory)) {
+        New-Item -ItemType Directory -Force -Path $tempPathDirectory
     }
 
-    if ($sourceVm) {
-        Export-VM -Name $sourceVm -Path $pathDirectory
-        Move-Item "$pathDirectory\$sourceVm\Virtual Hard Disks\*.*" $pathDirectory
-        Remove-Item "$pathDirectory\$sourceVm" -Force -Recurse
-		Get-VHD -path $vhd.Path
-    } elseif ($source) {
-        Push-Location $pathDirectory
-        
-        if (Test-Uri -Url $source) {
-            Get-FileFromUri -Url $source -FolderPath $pathDirectory
-        }
-        else {
-            Copy-Item $source $pathDirectory -Force
-        }
+    Push-Location $tempPathDirectory
 
-        Expand-Downloads -FolderPath $pathDirectory
+    try{
+        if ($sourceVm) {
+            Export-VM -Name $sourceVm -Path $tempPathDirectory
+            Expand-Downloads -FolderPath $tempPathDirectory\@sourceVm -TargetPath $vhd.Path                        
+        } elseif ($source) {            
+            
+            if (Test-Uri -Url $source) {
+                Get-FileFromUri -Url $source -FolderPath $tempPathDirectory
+            }
+            else {
+                Copy-Item $source $tempPathDirectory -Force
+            }
 
+            Expand-Downloads -FolderPath $tempPathDirectory -TargetPath $vhd.Path            
+        } else {
+            $NewVhdArgs = @{}
+            $NewVhdArgs.Path = $vhd.Path
+
+            if ($sourceDisk) {
+                $NewVhdArgs.SourceDisk = $sourceDisk
+            }
+            elseif ($vhdType -eq [Microsoft.Vhd.PowerShell.VhdType]::Differencing) {
+                $NewVhdArgs.Differencing = $true
+                $NewVhdArgs.ParentPath = $vhd.ParentPath
+            }
+            else {
+                if ($vhdType -eq [Microsoft.Vhd.PowerShell.VhdType]::Dynamic) {
+                    $NewVhdArgs.Dynamic = $true
+                }
+                elseif ($vhdType -eq [Microsoft.Vhd.PowerShell.VhdType]::Fixed) {
+                    $NewVhdArgs.Fixed = $true
+                }
+
+                if ($vhd.Size -gt 0) {
+                    $NewVhdArgs.SizeBytes = $vhd.Size
+                }
+
+                if ($vhd.BlockSize -gt 0) {
+                    $NewVhdArgs.BlockSizeBytes = $vhd.BlockSize
+                }
+
+                if ($vhd.LogicalSectorSize -gt 0) {
+                    $NewVhdArgs.LogicalSectorSizeBytes = $vhd.LogicalSectorSize
+                }
+
+                if ($vhd.PhysicalSectorSize -gt 0) {
+                    $NewVhdArgs.PhysicalSectorSizeBytes = $vhd.PhysicalSectorSize
+                }
+            }
+
+            New-VHD @NewVhdArgs
+        }
+    }
+    finally{
         Pop-Location
-    } else {
-        $NewVhdArgs = @{}
-        $NewVhdArgs.Path = $vhd.Path
-
-        if ($sourceDisk) {
-            $NewVhdArgs.SourceDisk = $sourceDisk
-        }
-        elseif ($vhdType -eq [Microsoft.Vhd.PowerShell.VhdType]::Differencing) {
-            $NewVhdArgs.Differencing = $true
-            $NewVhdArgs.ParentPath = $vhd.ParentPath
-        }
-        else {
-            if ($vhdType -eq [Microsoft.Vhd.PowerShell.VhdType]::Dynamic) {
-                $NewVhdArgs.Dynamic = $true
-            }
-            elseif ($vhdType -eq [Microsoft.Vhd.PowerShell.VhdType]::Fixed) {
-                $NewVhdArgs.Fixed = $true
-            }
-
-            if ($vhd.Size -gt 0) {
-                $NewVhdArgs.SizeBytes = $vhd.Size
-            }
-
-            if ($vhd.BlockSize -gt 0) {
-                $NewVhdArgs.BlockSizeBytes = $vhd.BlockSize
-            }
-
-            if ($vhd.LogicalSectorSize -gt 0) {
-                $NewVhdArgs.LogicalSectorSizeBytes = $vhd.LogicalSectorSize
-            }
-
-            if ($vhd.PhysicalSectorSize -gt 0) {
-                $NewVhdArgs.PhysicalSectorSizeBytes = $vhd.PhysicalSectorSize
-            }
-        }
-
-        New-VHD @NewVhdArgs
+        Remove-Item $tempPathDirectory -Force -Recurse        
     }
 }
 `))
@@ -373,7 +368,7 @@ func (c *HypervClient) CreateVhd(path string, source string, sourceVm string, so
 		PhysicalSectorSize: physicalSectorSize,
 	})
 
-	err = c.runFireAndForgetScript(createOrUpdateVhdTemplate, createOrUpdateVhdArgs{
+	err = c.runFireAndForgetScript(createVhdTemplate, createVhdArgs{
 		Source:     source,
 		SourceVm:   sourceVm,
 		SourceDisk: sourceDisk,

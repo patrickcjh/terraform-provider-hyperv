@@ -6,15 +6,17 @@ default: build
 build: fmtcheck
 	go install
 	go build -o ./bin/terraform-provider-hyperv
+	bash -c "mkdir -p ./terraform/terraform.d/plugins/linux_amd64"
+	bash -c "cp ./bin/terraform-provider-hyperv ./terraform/terraform.d/plugins/linux_amd64/terraform-provider-hyperv"
 
 init:
-	bash -c "cd ./bin && terraform init -force-copy"
+	bash -c "cd ./terraform && terraform init -force-copy"
 
 apply:
-	bash -c "cd ./bin && terraform apply -auto-approve"
+	bash -c "cd ./terraform && terraform apply -auto-approve"
 
 destroy:
-	bash -c "cd ./bin && terraform destroy -auto-approve"
+	bash -c "cd ./terraform && terraform destroy -auto-approve"
 
 test: fmtcheck
 	go test -i $(TEST) || exit 1
