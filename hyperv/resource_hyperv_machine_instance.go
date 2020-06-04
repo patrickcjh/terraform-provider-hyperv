@@ -159,25 +159,6 @@ func resourceHyperVMachineInstance() *schema.Resource {
 				Elem:             schema.TypeBool,
 			},
 
-			"state": {
-				Type:         schema.TypeString,
-				Optional:     true,
-				Default:      api.VmState_name[api.VmState_Running],
-				ValidateFunc: stringKeyInMap(api.VmState_SettableValue, true),
-			},
-
-			"wait_for_state_timeout": {
-				Type:     schema.TypeInt,
-				Optional: true,
-				Default:  120,
-			},
-
-			"wait_for_state_poll_period": {
-				Type:     schema.TypeInt,
-				Optional: true,
-				Default:  2,
-			},
-
 			"wait_for_ips_timeout": {
 				Type:     schema.TypeInt,
 				Optional: true,
@@ -194,6 +175,7 @@ func resourceHyperVMachineInstance() *schema.Resource {
 				Type:        schema.TypeList,
 				Optional:    true,
 				MaxItems:    1,
+				Computed:    true,
 				DefaultFunc: api.DefaultVmFirmwares,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
@@ -238,6 +220,7 @@ func resourceHyperVMachineInstance() *schema.Resource {
 				Type:        schema.TypeList,
 				Optional:    true,
 				MaxItems:    1,
+				Computed:    true,
 				DefaultFunc: api.DefaultVmProcessors,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
@@ -256,7 +239,8 @@ func resourceHyperVMachineInstance() *schema.Resource {
 						"hw_thread_count_per_core": {
 							Type:     schema.TypeInt,
 							Optional: true,
-							Default:  0,
+							Default:  nil,
+							Computed: true,
 						},
 
 						"maximum": {
@@ -281,17 +265,17 @@ func resourceHyperVMachineInstance() *schema.Resource {
 						},
 
 						"maximum_count_per_numa_node": {
-							Type:             schema.TypeInt,
-							Optional:         true,
-							Default:          0, //Dynamic value
-							DiffSuppressFunc: api.DiffSuppressVmProcessorMaximumCountPerNumaNode,
+							Type:     schema.TypeInt,
+							Optional: true,
+							Default:  nil, //Dynamic value
+							Computed: true,
 						},
 
 						"maximum_count_per_numa_socket": {
-							Type:             schema.TypeInt,
-							Optional:         true,
-							Default:          0, //Dynamic value
-							DiffSuppressFunc: api.DiffSuppressVmProcessorMaximumCountPerNumaSocket,
+							Type:     schema.TypeInt,
+							Optional: true,
+							Default:  nil, //Dynamic value
+							Computed: true,
 						},
 
 						"enable_host_resource_protection": {
@@ -653,7 +637,6 @@ func resourceHyperVMachineInstanceCreate(data *schema.ResourceData, meta interfa
 	smartPagingFilePath := (data.Get("smart_paging_file_path")).(string)
 	snapshotFileLocation := (data.Get("snapshot_file_location")).(string)
 	staticMemory := (data.Get("static_memory")).(bool)
-	state := api.ToVmState((data.Get("state")).(string))
 
 	if dynamicMemory && staticMemory {
 		return fmt.Errorf("[ERROR][hyperv][create] Dynamic and static can't be both selected at the same time")
@@ -742,12 +725,17 @@ func resourceHyperVMachineInstanceCreate(data *schema.ResourceData, meta interfa
 		}
 	}
 
-	waitForStateTimeout, waitForStatePollPeriod, err := api.ExpandVmStateWaitForState(data)
+	err = client.StartVm(name)
 	if err != nil {
 		return err
 	}
 
-	err = client.UpdateVmState(name, waitForStateTimeout, waitForStatePollPeriod, state)
+	networkAdaptersWaitForIps, waitForIpsTimeout, waitForIpsPollPeriod, err := api.ExpandVmNetworkAdapterWaitForIps(data)
+	if err != nil {
+		return err
+	}
+
+	err = client.WaitForVmNetworkAdaptersIps(name, waitForIpsTimeout, waitForIpsPollPeriod, networkAdaptersWaitForIps)
 	if err != nil {
 		return err
 	}
@@ -801,17 +789,7 @@ func resourceHyperVMachineInstanceRead(data *schema.ResourceData, meta interface
 		return err
 	}
 
-	vmState, err := client.GetVmState(name)
-	if err != nil {
-		return err
-	}
-
-	networkAdaptersWaitForIps, waitForIpsTimeout, waitForIpsPollPeriod, err := api.ExpandVmNetworkAdapterWaitForIps(data)
-	if err != nil {
-		return err
-	}
-
-	err = client.WaitForVmNetworkAdaptersIps(name, waitForIpsTimeout, waitForIpsPollPeriod, networkAdaptersWaitForIps)
+	networkAdaptersWaitForIps, _, _, err := api.ExpandVmNetworkAdapterWaitForIps(data)
 	if err != nil {
 		return err
 	}
@@ -902,7 +880,6 @@ func resourceHyperVMachineInstanceRead(data *schema.ResourceData, meta interface
 	data.Set("smart_paging_file_path", vm.SmartPagingFilePath)
 	data.Set("snapshot_file_location", vm.SnapshotFileLocation)
 	data.Set("static_memory", vm.StaticMemory)
-	data.Set("state", vmState.State.String())
 
 	log.Printf("[INFO][hyperv][read] read hyperv machine: %#v", data)
 
@@ -923,13 +900,8 @@ func resourceHyperVMachineInstanceUpdate(data *schema.ResourceData, meta interfa
 
 	generation := (data.Get("generation")).(int)
 
-	waitForStateTimeout, waitForStatePollPeriod, err := api.ExpandVmStateWaitForState(data)
-	if err != nil {
-		return err
-	}
-
 	// turn off machine before update will be completed
-	err = client.UpdateVmState(name, waitForStateTimeout, waitForStatePollPeriod, api.VmState_Off)
+	err = client.StopVm(name)
 	if err != nil {
 		return err
 	}
@@ -1064,8 +1036,17 @@ func resourceHyperVMachineInstanceUpdate(data *schema.ResourceData, meta interfa
 		}
 	}
 
-	state := api.ToVmState((data.Get("state")).(string))
-	err = client.UpdateVmState(name, waitForStateTimeout, waitForStatePollPeriod, state)
+	err = client.StartVm(name)
+	if err != nil {
+		return err
+	}
+
+	networkAdaptersWaitForIps, waitForIpsTimeout, waitForIpsPollPeriod, err := api.ExpandVmNetworkAdapterWaitForIps(data)
+	if err != nil {
+		return err
+	}
+
+	err = client.WaitForVmNetworkAdaptersIps(name, waitForIpsTimeout, waitForIpsPollPeriod, networkAdaptersWaitForIps)
 	if err != nil {
 		return err
 	}
@@ -1088,13 +1069,7 @@ func resourceHyperVMachineInstanceDelete(data *schema.ResourceData, meta interfa
 		return fmt.Errorf("[ERROR][hyperv][delete] name argument is required")
 	}
 
-	waitForStateTimeout, waitForStatePollPeriod, err := api.ExpandVmStateWaitForState(data)
-	if err != nil {
-		return err
-	}
-
-	state := api.VmState_Off
-	err = client.UpdateVmState(name, waitForStateTimeout, waitForStatePollPeriod, state)
+	err = client.StopVm(name)
 	if err != nil {
 		return err
 	}

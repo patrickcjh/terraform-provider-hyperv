@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"log"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"text/template"
+
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
 
 type ControllerType int
@@ -223,7 +224,7 @@ type createVmHardDiskDriveArgs struct {
 
 var createVmHardDiskDriveTemplate = template.Must(template.New("CreateVmHardDiskDrive").Parse(`
 $ErrorActionPreference = 'Stop'
-Get-Vm | Out-Null
+
 $vmHardDiskDrive = '{{.VmHardDiskDriveJson}}' | ConvertFrom-Json
 
 $NewVmHardDiskDriveArgs = @{
@@ -333,7 +334,7 @@ type updateVmHardDiskDriveArgs struct {
 
 var updateVmHardDiskDriveTemplate = template.Must(template.New("UpdateVmHardDiskDrive").Parse(`
 $ErrorActionPreference = 'Stop'
-Get-Vm | Out-Null
+
 $vmHardDiskDrive = '{{.VmHardDiskDriveJson}}' | ConvertFrom-Json
 
 $vmHardDiskDrivesObject = @(Get-VMHardDiskDrive -VmName '{{.VmName}}' -ControllerLocation {{.ControllerLocation}} -ControllerNumber {{.ControllerNumber}} )

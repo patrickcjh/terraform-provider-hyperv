@@ -15,6 +15,9 @@ init:
 apply:
 	bash -c "cd ./terraform && terraform apply -auto-approve"
 
+plan:
+	bash -c "cd ./terraform && terraform plan"
+
 destroy:
 	bash -c "cd ./terraform && terraform destroy -auto-approve"
 

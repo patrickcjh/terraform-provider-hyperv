@@ -313,7 +313,7 @@ type createVmArgs struct {
 
 var createVmTemplate = template.Must(template.New("CreateVm").Parse(`
 $ErrorActionPreference = 'Stop'
-Get-Vm | Out-Null
+
 $vm = '{{.VmJson}}' | ConvertFrom-Json
 
 $vmObject = Get-VM | ?{$_.Name -eq $vm.Name}
@@ -357,7 +357,7 @@ type prepareCreateVmArgs struct {
 
 var prepareCreatedVmTemplate = template.Must(template.New("CreateVm").Parse(`
 $ErrorActionPreference = 'Stop'
-Get-Vm | Out-Null
+
 $vm = '{{.VmJson}}' | ConvertFrom-Json
 
 #Delete any auto-generated network adapter
@@ -434,18 +434,12 @@ type updateVmArgs struct {
 
 var updateVmTemplate = template.Must(template.New("UpdateVm").Parse(`
 $ErrorActionPreference = 'Stop'
-Get-Vm | Out-Null
+
 $vm = '{{.VmJson}}' | ConvertFrom-Json
-$automaticCriticalErrorAction = [Microsoft.HyperV.PowerShell.CriticalErrorAction]$vm.AutomaticCriticalErrorAction
-$automaticStartAction = [Microsoft.HyperV.PowerShell.StartAction]$vm.AutomaticStartAction
-$automaticStopAction = [Microsoft.HyperV.PowerShell.StopAction]$vm.AutomaticStopAction
-$checkpointType = [Microsoft.HyperV.PowerShell.CheckpointType]$vm.CheckpointType
-$lockOnDisconnect = [Microsoft.HyperV.PowerShell.OnOffState]$vm.LockOnDisconnect
-$allowUnverifiedPaths = $true #Not a property set on the vm object, skips validation when changing path
 $vmObject = Get-VM | ?{$_.Name -eq $vm.Name}
 
 if (!$vmObject){
-	throw "VM does not exist - $($vm.Name)"
+        throw "VM does not exist - $($vm.Name)"
 }
 
 #Set static and dynamic properties can't be set at the same time, but we need the values to match terraforms state
@@ -468,21 +462,21 @@ $SetVmArgs.GuestControlledCacheTypes=$vm.GuestControlledCacheTypes
 $SetVmArgs.LowMemoryMappedIoSpace=$vm.LowMemoryMappedIoSpace
 $SetVmArgs.HighMemoryMappedIoSpace=$vm.HighMemoryMappedIoSpace
 $SetVmArgs.ProcessorCount=$vm.ProcessorCount
-$SetVmArgs.AutomaticStartAction=$automaticStartAction
-$SetVmArgs.AutomaticStopAction=$automaticStopAction
+$SetVmArgs.AutomaticStartAction=$vm.AutomaticStartAction
+$SetVmArgs.AutomaticStopAction=$vm.AutomaticStopAction
 $SetVmArgs.AutomaticStartDelay=$vm.AutomaticStartDelay
-$SetVmArgs.AutomaticCriticalErrorAction=$automaticCriticalErrorAction
+$SetVmArgs.AutomaticCriticalErrorAction=$vm.AutomaticCriticalErrorAction
 $SetVmArgs.AutomaticCriticalErrorActionTimeout=$vm.AutomaticCriticalErrorActionTimeout
-$SetVmArgs.LockOnDisconnect=$lockOnDisconnect
+$SetVmArgs.LockOnDisconnect=$vm.LockOnDisconnect
 $SetVmArgs.Notes=$vm.Notes
 $SetVmArgs.SnapshotFileLocation=$vm.SnapshotFileLocation
 $SetVmArgs.SmartPagingFilePath=$vm.SmartPagingFilePath
-$SetVmArgs.CheckpointType=$checkpointType
-$SetVmArgs.AllowUnverifiedPaths=$allowUnverifiedPaths
+$SetVmArgs.CheckpointType=$vm.CheckpointType
+$SetVmArgs.AllowUnverifiedPaths=$true
 if ($vm.StaticMemory) {
-	$SetVmArgs.StaticMemory = $vm.StaticMemory
+        $SetVmArgs.StaticMemory = $vm.StaticMemory
 } else {
-	$SetVmArgs.DynamicMemory = $vm.DynamicMemory
+        $SetVmArgs.DynamicMemory = $vm.DynamicMemory
 }
 
 Set-Vm @SetVmArgs

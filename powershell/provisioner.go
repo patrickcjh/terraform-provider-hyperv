@@ -5,13 +5,14 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
-	"github.com/masterzen/winrm"
-	"github.com/segmentio/ksuid"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"strings"
+
+	"github.com/masterzen/winrm"
+	"github.com/segmentio/ksuid"
 )
 
 func TimeOrderedUUID() string {
@@ -470,63 +471,47 @@ func generateElevatedRunner(client *winrm.Client, elevatedUser string, elevatedP
 	return elevatedRemotePath, nil
 }
 
-//Run powershell
 func RunPowershell(client *winrm.Client, elevatedUser string, elevatedPassword string, vars string, commandText string) (exitStatus int, stdout string, stderr string, err error) {
-	name := fmt.Sprintf("terraform-%s", TimeOrderedUUID())
-	fileName := fmt.Sprintf(`shell-%s.ps1`, name)
-
-	path, err := uploadScript(client, fileName, commandText)
-	if err != nil {
-		return 0, "", "", err
+	runPowershellCommand, stdin := wrapPowershellCommand(commandText)
+	stdout, stderr, exitStatus, err = client.RunWithString(runPowershellCommand, stdin)
+	log.Printf("[DEBUG] Shell execute result:exitCode=%d stdout=\n%s\n stderr=\n%s", exitStatus, stdout, stderr)
+	if err == nil && exitStatus != 0 {
+		err = fmt.Errorf("Run command operation\n%s\nreturned code=%d\nstderr:\n%s\nstdOut:\n%s", commandText, exitStatus, stderr, stdout)
 	}
 
-	var command string
-
-	if elevatedUser == "" {
-		command, err = createCommand(vars, path)
-	} else {
-		command, path, err = createElevatedCommand(client, elevatedUser, elevatedPassword, vars, path)
+	if err == nil && len(stderr) > 0 {
+		err = fmt.Errorf("Run command operation \n%s\n returned \nstderr:\n%s\nstdOut:\n%s", commandText, stderr, stdout)
 	}
 
-	if err != nil {
-		return 0, "", "", err
+	return exitStatus, stdout, stderr, err
+}
+
+// Wraps a PowerShell script
+// and prepares it for execution by the winrm client
+func wrapPowershellCommand(psCmd string) (runPowershellCommand string, stdin string) {
+	// to ensure that stderr won't contain any garbage
+	doNotReportGarbageIntoStdErrCmd := `
+	$ProgressPreference="SilentlyContinue";
+	$WarningPreference="SilentlyContinue";
+	`
+	psCmd = doNotReportGarbageIntoStdErrCmd + psCmd
+
+	// 2 byte chars to make PowerShell happy
+	wideCmd := ""
+	for _, b := range []byte(psCmd) {
+		wideCmd += string(b) + "\x00"
 	}
 
-	var executePowershellFromCommandLineTemplateRendered bytes.Buffer
-	err = executePowershellFromCommandLineTemplate.Execute(&executePowershellFromCommandLineTemplateRendered, executePowershellFromCommandLineTemplateOptions{
-		Powershell: command,
-	})
+	// Base64 encode the command
+	input := []uint8(wideCmd)
+	encodedCmd := base64.StdEncoding.EncodeToString(input)
 
-	if err != nil {
-		return 0, "", "", err
-	}
-
-	command = string(executePowershellFromCommandLineTemplateRendered.Bytes())
-
-	shell, err := client.CreateShell()
-	if err != nil {
-		return 0, "", "", err
-	}
-	defer shell.Close()
-
-	commandExitCode, stdOutPut, errorOutPut, err := shellExecute(shell, command)
-
-	if err != nil {
-		return 0, "", "", err
-	}
-
-	if commandExitCode != 0 {
-		return 0, "", "", fmt.Errorf("run command operation returned code=%d\nstderr:\n%s\nstdOut:\n%s", commandExitCode, errorOutPut, stdOutPut)
-	}
-
-	if len(errorOutPut) > 0 {
-		return 0, "", "", fmt.Errorf("run command operation returned \nstderr:\n%s\nstdOut:\n%s", errorOutPut, stdOutPut)
-	}
-
-	err = cleanupContent(client, path)
-	if err != nil {
-		return 0, "", "", fmt.Errorf("error removing temporary file %s: %v", path, err)
-	}
-
-	return commandExitCode, stdOutPut, errorOutPut, nil
+	// Create the powershell.exe command line to execute the script
+	runPowershellCommand = fmt.Sprintf("powershell.exe -NonInteractive -NoProfile -OutputFormat Text -EncodedCommand %s", encodedCmd)
+	stdin = ""
+	/*
+		runPowershellCommand = "powershell.exe -NonInteractive -NoProfile -OutputFormat Text"
+		stdin = psCmd + "; exit 0"
+	*/
+	return runPowershellCommand, stdin
 }

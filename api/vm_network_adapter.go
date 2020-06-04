@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"strconv"
 	"strings"
 	"text/template"
+
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
 
 type PortMirroring int
@@ -322,93 +323,44 @@ type vmNetworkAdapter struct {
 }
 
 type createVmNetworkAdapterArgs struct {
-	VmNetworkAdapterJson string
+	VmName     string
+	Name       string
+	SwitchName string
+	IsLegacy   bool
 }
 
 var createVmNetworkAdapterTemplate = template.Must(template.New("CreateVmNetworkAdapter").Parse(`
 $ErrorActionPreference = 'Stop'
-Get-Vm | Out-Null
-$vmNetworkAdapter = '{{.VmNetworkAdapterJson}}' | ConvertFrom-Json
-
-$dhcpGuard = [Microsoft.HyperV.PowerShell.OnOffState]$vmNetworkAdapter.DhcpGuard
-$routerGuard = [Microsoft.HyperV.PowerShell.OnOffState]$vmNetworkAdapter.RouterGuard
-$portMirroring = [Microsoft.HyperV.PowerShell.VMNetworkAdapterPortMirroringMode]$vmNetworkAdapter.PortMirroring
-$ieeePriorityTag = [Microsoft.HyperV.PowerShell.OnOffState]$vmNetworkAdapter.IeeePriorityTag
-$iovInterruptModeration = [Microsoft.HyperV.PowerShell.IovInterruptModerationValue]$vmNetworkAdapter.IovInterruptModeration
-$allowTeaming = [Microsoft.HyperV.PowerShell.OnOffState]$vmNetworkAdapter.AllowTeaming
-$deviceNaming = [Microsoft.HyperV.PowerShell.OnOffState]$vmNetworkAdapter.DeviceNaming
-$fixSpeed10G = [Microsoft.HyperV.PowerShell.OnOffState]$vmNetworkAdapter.FixSpeed10G
 
 $NewVmNetworkAdapterArgs = @{
-	VmName=$vmNetworkAdapter.VmName
-	Name=$vmNetworkAdapter.Name
-	IsLegacy=$vmNetworkAdapter.IsLegacy
-	SwitchName=$vmNetworkAdapter.SwitchName
+	VmName='{{.VmName}}'
+	Name='{{.Name}}'
+	IsLegacy=${{.IsLegacy}}
+	SwitchName='{{.SwitchName}}'
 }
 
 Add-VmNetworkAdapter @NewVmNetworkAdapterArgs
 
-$minimumBandwidthMode = [Microsoft.HyperV.PowerShell.VMSwitchBandwidthMode]::None
-
-if ($vmNetworkAdapter.SwitchName) {
-	$vmSwitch = Get-VMSwitch -Name $vmNetworkAdapter.SwitchName
-	if ($vmSwitch) {
-		$minimumBandwidthMode = $vmSwitch.BandwidthReservationMode
-	}
-}
-
-$SetVmNetworkAdapterArgs = @{}
-$SetVmNetworkAdapterArgs.VmName=$vmNetworkAdapter.VmName
-$SetVmNetworkAdapterArgs.Name=$vmNetworkAdapter.Name
-if ($vmNetworkAdapter.DynamicMacAddress) {
-	$SetVmNetworkAdapterArgs.DynamicMacAddress=$vmNetworkAdapter.DynamicMacAddress
-} elseif ($vmNetworkAdapter.StaticMacAddress) {
-	$SetVmNetworkAdapterArgs.StaticMacAddress=$vmNetworkAdapter.StaticMacAddress
-}
-if ($vmNetworkAdapter.MacAddressSpoofing) {
-	$SetVmNetworkAdapterArgs.MacAddressSpoofing=$vmNetworkAdapter.MacAddressSpoofing
-}
-$SetVmNetworkAdapterArgs.DhcpGuard=$dhcpGuard
-$SetVmNetworkAdapterArgs.RouterGuard=$routerGuard
-$SetVmNetworkAdapterArgs.PortMirroring=$portMirroring
-$SetVmNetworkAdapterArgs.IeeePriorityTag=$ieeePriorityTag
-$SetVmNetworkAdapterArgs.VmqWeight=$vmNetworkAdapter.VmqWeight
-$SetVmNetworkAdapterArgs.IovQueuePairsRequested=$vmNetworkAdapter.IovQueuePairsRequested
-$SetVmNetworkAdapterArgs.IovInterruptModeration=$iovInterruptModeration
-$SetVmNetworkAdapterArgs.IovWeight=$vmNetworkAdapter.IovWeight
-$SetVmNetworkAdapterArgs.IPsecOffloadMaximumSecurityAssociation=$vmNetworkAdapter.IPsecOffloadMaximumSecurityAssociation
-$SetVmNetworkAdapterArgs.MaximumBandwidth=$vmNetworkAdapter.MaximumBandwidth
-if ($minimumBandwidthMode -eq [Microsoft.HyperV.PowerShell.VMSwitchBandwidthMode]::Absolute){
-	$SetVmNetworkAdapterArgs.MinimumBandwidthAbsolute=$vmNetworkAdapter.MinimumBandwidthAbsolute
-}
-if ($minimumBandwidthMode -eq [Microsoft.HyperV.PowerShell.VMSwitchBandwidthMode]::Weight -or $minimumBandwidthMode -eq [Microsoft.HyperV.PowerShell.VMSwitchBandwidthMode]::Default){
-	$SetVmNetworkAdapterArgs.MinimumBandwidthWeight=$vmNetworkAdapter.MinimumBandwidthWeight
-}
-$SetVmNetworkAdapterArgs.MandatoryFeatureId=$vmNetworkAdapter.MandatoryFeatureId
-if ($vmNetworkAdapter.ResourcePoolName) {
-	$SetVmNetworkAdapterArgs.ResourcePoolName=$vmNetworkAdapter.ResourcePoolName
-}
-$SetVmNetworkAdapterArgs.TestReplicaPoolName=$vmNetworkAdapter.TestReplicaPoolName
-$SetVmNetworkAdapterArgs.TestReplicaSwitchName=$vmNetworkAdapter.TestReplicaSwitchName
-$SetVmNetworkAdapterArgs.VirtualSubnetId=$vmNetworkAdapter.VirtualSubnetId
-$SetVmNetworkAdapterArgs.AllowTeaming=$allowTeaming
-$SetVmNetworkAdapterArgs.NotMonitoredInCluster=$vmNetworkAdapter.NotMonitoredInCluster
-$SetVmNetworkAdapterArgs.StormLimit=$vmNetworkAdapter.StormLimit
-$SetVmNetworkAdapterArgs.DynamicIPAddressLimit=$vmNetworkAdapter.DynamicIPAddressLimit
-$SetVmNetworkAdapterArgs.DeviceNaming=$deviceNaming
-$SetVmNetworkAdapterArgs.FixSpeed10G=$fixSpeed10G
-$SetVmNetworkAdapterArgs.PacketDirectNumProcs=$vmNetworkAdapter.PacketDirectNumProcs
-$SetVmNetworkAdapterArgs.PacketDirectModerationCount=$vmNetworkAdapter.PacketDirectModerationCount
-$SetVmNetworkAdapterArgs.PacketDirectModerationInterval=$vmNetworkAdapter.PacketDirectModerationInterval
-$SetVmNetworkAdapterArgs.VrssEnabled=$vmNetworkAdapter.VrssEnabled
-$SetVmNetworkAdapterArgs.VmmqEnabled=$vmNetworkAdapter.VmmqEnabled
-$SetVmNetworkAdapterArgs.VmmqQueuePairs=$vmNetworkAdapter.VmmqQueuePairs
-
-Set-VmNetworkAdapter @SetVmNetworkAdapterArgs
-
 `))
 
 func (c *HypervClient) CreateVmNetworkAdapter(
+	vmName string,
+	name string,
+	switchName string,
+	isLegacy bool,
+) (err error) {
+
+	err = c.runFireAndForgetScript(createVmNetworkAdapterTemplate, createVmNetworkAdapterArgs{
+		VmName:     vmName,
+		IsLegacy:   isLegacy,
+		Name:       name,
+		SwitchName: switchName,
+	})
+
+	return err
+}
+
+func (c *HypervClient) CreateVmNetworkAdapterExtended(
 	vmName string,
 	name string,
 	switchName string,
@@ -448,51 +400,50 @@ func (c *HypervClient) CreateVmNetworkAdapter(
 	vmmqQueuePairs int,
 ) (err error) {
 
-	vmNetworkAdapterJson, err := json.Marshal(vmNetworkAdapter{
-		VmName:                                 vmName,
-		Name:                                   name,
-		SwitchName:                             switchName,
-		ManagementOs:                           managementOs,
-		IsLegacy:                               isLegacy,
-		DynamicMacAddress:                      dynamicMacAddress,
-		StaticMacAddress:                       staticMacAddress,
-		MacAddressSpoofing:                     macAddressSpoofing,
-		DhcpGuard:                              dhcpGuard,
-		RouterGuard:                            routerGuard,
-		PortMirroring:                          portMirroring,
-		IeeePriorityTag:                        ieeePriorityTag,
-		VmqWeight:                              vmqWeight,
-		IovQueuePairsRequested:                 iovQueuePairsRequested,
-		IovInterruptModeration:                 iovInterruptModeration,
-		IovWeight:                              iovWeight,
-		IpsecOffloadMaximumSecurityAssociation: ipsecOffloadMaximumSecurityAssociation,
-		MaximumBandwidth:                       maximumBandwidth,
-		MinimumBandwidthAbsolute:               minimumBandwidthAbsolute,
-		MinimumBandwidthWeight:                 minimumBandwidthWeight,
-		MandatoryFeatureId:                     mandatoryFeatureId,
-		ResourcePoolName:                       resourcePoolName,
-		TestReplicaPoolName:                    testReplicaPoolName,
-		TestReplicaSwitchName:                  testReplicaSwitchName,
-		VirtualSubnetId:                        virtualSubnetId,
-		AllowTeaming:                           allowTeaming,
-		NotMonitoredInCluster:                  notMonitoredInCluster,
-		StormLimit:                             stormLimit,
-		DynamicIpAddressLimit:                  dynamicIpAddressLimit,
-		DeviceNaming:                           deviceNaming,
-		FixSpeed10G:                            fixSpeed10G,
-		PacketDirectNumProcs:                   packetDirectNumProcs,
-		PacketDirectModerationCount:            packetDirectModerationCount,
-		PacketDirectModerationInterval:         packetDirectModerationInterval,
-		VrssEnabled:                            vrssEnabled,
-		VmmqEnabled:                            vmmqEnabled,
-		VmmqQueuePairs:                         vmmqQueuePairs,
-	})
-
-	err = c.runFireAndForgetScript(createVmNetworkAdapterTemplate, createVmNetworkAdapterArgs{
-		VmNetworkAdapterJson: string(vmNetworkAdapterJson),
-	})
-
-	return err
+	err = c.CreateVmNetworkAdapter(vmName, name, switchName, isLegacy)
+	if err != nil {
+		return err
+	}
+	return c.UpdateVmNetworkAdapter(
+		vmName,
+		0, // TODO consider how we can pick index correctly (or resolve by name??)
+		name,
+		switchName,
+		managementOs,
+		isLegacy,
+		dynamicMacAddress,
+		staticMacAddress,
+		macAddressSpoofing,
+		dhcpGuard,
+		routerGuard,
+		portMirroring,
+		ieeePriorityTag,
+		vmqWeight,
+		iovQueuePairsRequested,
+		iovInterruptModeration,
+		iovWeight,
+		ipsecOffloadMaximumSecurityAssociation,
+		maximumBandwidth,
+		minimumBandwidthAbsolute,
+		minimumBandwidthWeight,
+		mandatoryFeatureId,
+		resourcePoolName,
+		testReplicaPoolName,
+		testReplicaSwitchName,
+		virtualSubnetId,
+		allowTeaming,
+		notMonitoredInCluster,
+		stormLimit,
+		dynamicIpAddressLimit,
+		deviceNaming,
+		fixSpeed10G,
+		packetDirectNumProcs,
+		packetDirectModerationCount,
+		packetDirectModerationInterval,
+		vrssEnabled,
+		vmmqEnabled,
+		vmmqQueuePairs,
+	)
 }
 
 type getVmNetworkAdaptersArgs struct {
@@ -501,10 +452,6 @@ type getVmNetworkAdaptersArgs struct {
 
 var getVmNetworkAdaptersTemplate = template.Must(template.New("GetVmNetworkAdapters").Parse(`
 $ErrorActionPreference = 'Stop'
-#First 3 requests fails to get ip address
-Get-VMNetworkAdapter -VmName '{{.VmName}}' | Out-Null
-Get-VMNetworkAdapter -VmName '{{.VmName}}' | Out-Null
-Get-VMNetworkAdapter -VmName '{{.VmName}}' | Out-Null
 
 $vmNetworkAdaptersObject = @(Get-VMNetworkAdapter -VmName '{{.VmName}}' | %{ @{
      Name=$_.Name;
@@ -584,77 +531,25 @@ type waitForVmNetworkAdaptersIpsArgs struct {
 var waitForVmNetworkAdaptersIpsTemplate = template.Must(template.New("WaitForVmNetworkAdaptersIps").Parse(`
 $ErrorActionPreference = 'Stop'
 
-function Test-CanGetIpsForState($State){
-	$states = @([Microsoft.HyperV.PowerShell.VMState]::Running,
-			[Microsoft.HyperV.PowerShell.VMState]::RunningCritical
-        )
-    return $states -contains $state 
-}
-
-function Test-CanNotGetIpsForState($State){
-    $states = @([Microsoft.HyperV.PowerShell.VMState]::Stopping,
-			[Microsoft.HyperV.PowerShell.VMState]::StoppingCritical,
-			[Microsoft.HyperV.PowerShell.VMState]::ForceShutdown,
-			[Microsoft.HyperV.PowerShell.VMState]::Off,
-			[Microsoft.HyperV.PowerShell.VMState]::OffCritical,
-			[Microsoft.HyperV.PowerShell.VMState]::Paused,
-			[Microsoft.HyperV.PowerShell.VMState]::PausedCritical
-        )
-    return $states -contains $state 
-}
-
-function Test-IsNotInFinalTransitionState($State){
-    $states = @([Microsoft.HyperV.PowerShell.VMState]::Other,
-		[Microsoft.HyperV.PowerShell.VMState]::Stopping,
-		[Microsoft.HyperV.PowerShell.VMState]::Saved,
-		[Microsoft.HyperV.PowerShell.VMState]::Starting,
-		[Microsoft.HyperV.PowerShell.VMState]::Reset,
-		[Microsoft.HyperV.PowerShell.VMState]::Saving,
-		[Microsoft.HyperV.PowerShell.VMState]::Pausing,
-		[Microsoft.HyperV.PowerShell.VMState]::Resuming,
-		[Microsoft.HyperV.PowerShell.VMState]::FastSaved,
-		[Microsoft.HyperV.PowerShell.VMState]::FastSaving,
-		[Microsoft.HyperV.PowerShell.VMState]::ForceShutdown,
-		[Microsoft.HyperV.PowerShell.VMState]::ForceReboot,
-        [Microsoft.HyperV.PowerShell.VMState]::StoppingCritical,
-        [Microsoft.HyperV.PowerShell.VMState]::SavedCritical,
-        [Microsoft.HyperV.PowerShell.VMState]::StartingCritical,
-        [Microsoft.HyperV.PowerShell.VMState]::ResetCritical,
-        [Microsoft.HyperV.PowerShell.VMState]::SavingCritical,
-        [Microsoft.HyperV.PowerShell.VMState]::PausingCritical,
-        [Microsoft.HyperV.PowerShell.VMState]::ResumingCritical,
-        [Microsoft.HyperV.PowerShell.VMState]::FastSavedCritical,
-        [Microsoft.HyperV.PowerShell.VMState]::FastSavingCritical
-        )
-	   
-    return $states -contains $State 
-}
-
-function Wait-ForNetworkAdapterIps($Name, $Timeout, $PollPeriod, $VmNetworkAdaptersToWaitForIps){
-	$timer = [Diagnostics.Stopwatch]::StartNew()
+function Wait-ForNetworkAdapterIps($VmName, $Timeout, $PollPeriod, $VmNetworkAdaptersToWaitForIps){
+    $timer = [Diagnostics.Stopwatch]::StartNew()
 	while ($timer.Elapsed.TotalSeconds -lt $Timeout) {
-        $vmObject = Get-VM | ?{$_.Name -eq $vmName}
+        $vmObject = Get-VM -Name $VmName
 
-        if (!(Test-IsNotInFinalTransitionState $vmObject.state)){
-            if (Test-CanGetIpsForState $vmObject.state) {
-                $waitForIp = $false
+        $waitForIp = $false
 
-                $VmNetworkAdaptersToWaitForIps | ?{$_.WaitForIps} | %{
-                    $name = $_.Name
-                    $ipAddresses = @($vmObject.NetworkAdapters | ?{$_.Name -eq $name} | %{$_.IPAddresses} |?{$_})
+        $VmNetworkAdaptersToWaitForIps | %{
+            $name = $_.Name
+            $ipAddresses = @($vmObject.NetworkAdapters | ?{$_.Name -eq $name} | %{$_.IPAddresses} |?{$_})
 
-                    if ((!($ipAddresses)) -or ($ipAddresses -contains '0.0.0.0')){
-                        $waitForIp = $true
-                    } 
-                }
+            if ((!($ipAddresses)) -or ($ipAddresses -contains '0.0.0.0')){
+                $waitForIp = $true
+            } 
+        }
 
-                if (!$waitForIp){
-                    break
-                }
-           	} elseif (Test-CanNotGetIpsForState $vmObject.state) {
-               	break
-           	}
-       	}
+        if (!$waitForIp){
+            break
+        }
 
         Start-Sleep -Seconds $PollPeriod
 	}
@@ -665,8 +560,7 @@ function Wait-ForNetworkAdapterIps($Name, $Timeout, $PollPeriod, $VmNetworkAdapt
 	} 
 }
 
-Get-Vm | Out-Null
-$vmNetworkAdaptersToWaitForIps = '{{.VmNetworkAdaptersWaitForIpsJson}}' | ConvertFrom-Json
+$vmNetworkAdaptersToWaitForIps = '{{.VmNetworkAdaptersWaitForIpsJson}}' | ConvertFrom-Json | ?{$_.WaitForIps}
 $vmName = '{{.VmName}}'
 $vmObject = Get-VM | ?{$_.Name -eq $vmName}
 $timeout = {{.Timeout}}
@@ -676,7 +570,7 @@ if (!$vmObject){
 	throw "VM does not exist - $($vmName)"
 }
 
-Wait-ForNetworkAdapterIps -Name $vmName -Timeout $timeout -PollPeriod $pollPeriod -VmNetworkAdaptersToWaitForIps $vmNetworkAdaptersToWaitForIps
+Wait-ForNetworkAdapterIps -VmName $vmName -Timeout $timeout -PollPeriod $pollPeriod -VmNetworkAdaptersToWaitForIps $vmNetworkAdaptersToWaitForIps
 
 `))
 
@@ -733,81 +627,39 @@ type updateVmNetworkAdapterArgs struct {
 
 var updateVmNetworkAdapterTemplate = template.Must(template.New("UpdateVmNetworkAdapter").Parse(`
 $ErrorActionPreference = 'Stop'
-#First 3 requests fails to get ip address
-Get-VMNetworkAdapter -VmName '{{.VmName}}' | Out-Null
-Get-VMNetworkAdapter -VmName '{{.VmName}}' | Out-Null
-Get-VMNetworkAdapter -VmName '{{.VmName}}' | Out-Null
 
 $vmNetworkAdapter = '{{.VmNetworkAdapterJson}}' | ConvertFrom-Json
-
-$dhcpGuard = [Microsoft.HyperV.PowerShell.OnOffState]$vmNetworkAdapter.DhcpGuard
-$routerGuard = [Microsoft.HyperV.PowerShell.OnOffState]$vmNetworkAdapter.RouterGuard
-$portMirroring = [Microsoft.HyperV.PowerShell.VMNetworkAdapterPortMirroringMode]$vmNetworkAdapter.PortMirroring
-$ieeePriorityTag = [Microsoft.HyperV.PowerShell.OnOffState]$vmNetworkAdapter.IeeePriorityTag
-$iovInterruptModeration = [Microsoft.HyperV.PowerShell.IovInterruptModerationValue]$vmNetworkAdapter.IovInterruptModeration
-$allowTeaming = [Microsoft.HyperV.PowerShell.OnOffState]$vmNetworkAdapter.AllowTeaming
-$deviceNaming = [Microsoft.HyperV.PowerShell.OnOffState]$vmNetworkAdapter.DeviceNaming
-$fixSpeed10G = [Microsoft.HyperV.PowerShell.OnOffState]$vmNetworkAdapter.FixSpeed10G
 
 $vmNetworkAdaptersObject = @(Get-VMNetworkAdapter -VmName '{{.VmName}}')[{{.Index}}]
 
 if (!$vmNetworkAdaptersObject){
-	throw "VM network adapter does not exist - {{.Index}}"
+	throw "VM network adapter does not exist - 0"
 }
 
-if ($vmNetworkAdapter.SwitchName) {
-	$vmSwitch = Get-VMSwitch -Name $vmNetworkAdapter.SwitchName
-	if ($vmSwitch) {
-		$minimumBandwidthMode = $vmSwitch.BandwidthReservationMode
-	}
-}
 
 $SetVmNetworkAdapterArgs = @{}
-$SetVmNetworkAdapterArgs.VmName=$vmNetworkAdapter.VmName
-$SetVmNetworkAdapterArgs.Name=$vmNetworkAdapter.Name
-if ($vmNetworkAdapter.DynamicMacAddress) {
-	$SetVmNetworkAdapterArgs.DynamicMacAddress=$vmNetworkAdapter.DynamicMacAddress
-} elseif ($vmNetworkAdapter.StaticMacAddress) {
-	$SetVmNetworkAdapterArgs.StaticMacAddress=$vmNetworkAdapter.StaticMacAddress
+$vmNetworkAdapter.psobject.properties | ForEach-Object {
+	$prop = $_
+	switch ($prop.Name) {
+			"Index" { }
+			"SwitchName" { }
+			"ManagementOs" { }
+			"IsLegacy" { }
+			"WaitForIps"{ }
+			"IpAddresses" { }
+			"StaticMacAddress"{
+					if(-not $vmNetworkAdapter.DynamicMacAddress) {
+							$SetVmNetworkAdapterArgs[$prop.Name] = $prop.Value
+					}
+			}
+			"ResourcePoolName" { 
+					if($prop.Value) {
+							$SetVmNetworkAdapterArgs[$prop.Name] = $prop.Value
+					}
+			}
+			Default {$SetVmNetworkAdapterArgs[$prop.Name] = $prop.Value}
+	} 
 }
-if ($vmNetworkAdapter.MacAddressSpoofing) {
-	$SetVmNetworkAdapterArgs.MacAddressSpoofing=$vmNetworkAdapter.MacAddressSpoofing
-}
-$SetVmNetworkAdapterArgs.DhcpGuard=$dhcpGuard
-$SetVmNetworkAdapterArgs.RouterGuard=$routerGuard
-$SetVmNetworkAdapterArgs.PortMirroring=$portMirroring
-$SetVmNetworkAdapterArgs.IeeePriorityTag=$ieeePriorityTag
-$SetVmNetworkAdapterArgs.VmqWeight=$vmNetworkAdapter.VmqWeight
-$SetVmNetworkAdapterArgs.IovQueuePairsRequested=$vmNetworkAdapter.IovQueuePairsRequested
-$SetVmNetworkAdapterArgs.IovInterruptModeration=$iovInterruptModeration
-$SetVmNetworkAdapterArgs.IovWeight=$vmNetworkAdapter.IovWeight
-$SetVmNetworkAdapterArgs.IPsecOffloadMaximumSecurityAssociation=$vmNetworkAdapter.IPsecOffloadMaximumSecurityAssociation
-$SetVmNetworkAdapterArgs.MaximumBandwidth=$vmNetworkAdapter.MaximumBandwidth
-if ($minimumBandwidthMode -eq [Microsoft.HyperV.PowerShell.VMSwitchBandwidthMode]::Absolute){
-	$SetVmNetworkAdapterArgs.MinimumBandwidthAbsolute=$vmNetworkAdapter.MinimumBandwidthAbsolute
-}
-if ($minimumBandwidthMode -eq [Microsoft.HyperV.PowerShell.VMSwitchBandwidthMode]::Weight -or $minimumBandwidthMode -eq [Microsoft.HyperV.PowerShell.VMSwitchBandwidthMode]::Default){
-	$SetVmNetworkAdapterArgs.MinimumBandwidthWeight=$vmNetworkAdapter.MinimumBandwidthWeight
-}
-$SetVmNetworkAdapterArgs.MandatoryFeatureId=$vmNetworkAdapter.MandatoryFeatureId
-if ($vmNetworkAdapter.ResourcePoolName) {
-	$SetVmNetworkAdapterArgs.ResourcePoolName=$vmNetworkAdapter.ResourcePoolName
-}
-$SetVmNetworkAdapterArgs.TestReplicaPoolName=$vmNetworkAdapter.TestReplicaPoolName
-$SetVmNetworkAdapterArgs.TestReplicaSwitchName=$vmNetworkAdapter.TestReplicaSwitchName
-$SetVmNetworkAdapterArgs.VirtualSubnetId=$vmNetworkAdapter.VirtualSubnetId
-$SetVmNetworkAdapterArgs.AllowTeaming=$allowTeaming
-$SetVmNetworkAdapterArgs.NotMonitoredInCluster=$vmNetworkAdapter.NotMonitoredInCluster
-$SetVmNetworkAdapterArgs.StormLimit=$vmNetworkAdapter.StormLimit
-$SetVmNetworkAdapterArgs.DynamicIPAddressLimit=$vmNetworkAdapter.DynamicIPAddressLimit
-$SetVmNetworkAdapterArgs.DeviceNaming=$deviceNaming
-$SetVmNetworkAdapterArgs.FixSpeed10G=$fixSpeed10G
-$SetVmNetworkAdapterArgs.PacketDirectNumProcs=$vmNetworkAdapter.PacketDirectNumProcs
-$SetVmNetworkAdapterArgs.PacketDirectModerationCount=$vmNetworkAdapter.PacketDirectModerationCount
-$SetVmNetworkAdapterArgs.PacketDirectModerationInterval=$vmNetworkAdapter.PacketDirectModerationInterval
-$SetVmNetworkAdapterArgs.VrssEnabled=$vmNetworkAdapter.VrssEnabled
-$SetVmNetworkAdapterArgs.VmmqEnabled=$vmNetworkAdapter.VmmqEnabled
-$SetVmNetworkAdapterArgs.VmmqQueuePairs=$vmNetworkAdapter.VmmqQueuePairs
 
 Set-VmNetworkAdapter @SetVmNetworkAdapterArgs
 
@@ -1000,6 +852,16 @@ func (c *HypervClient) CreateOrUpdateVmNetworkAdapters(vmName string, networkAda
 		networkAdapter := networkAdapters[i]
 		err = c.CreateVmNetworkAdapter(
 			vmName,
+			networkAdapter.Name,
+			networkAdapter.SwitchName,
+			networkAdapter.IsLegacy,
+		)
+		if err != nil {
+			return err
+		}
+		err = c.UpdateVmNetworkAdapter(
+			vmName,
+			i,
 			networkAdapter.Name,
 			networkAdapter.SwitchName,
 			networkAdapter.ManagementOs,

@@ -3,9 +3,10 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"log"
 	"text/template"
+
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
 
 func DefaultVmProcessors() (interface{}, error) {
@@ -13,38 +14,18 @@ func DefaultVmProcessors() (interface{}, error) {
 	vmProcessor := vmProcessor{
 		CompatibilityForMigrationEnabled:             false,
 		CompatibilityForOlderOperatingSystemsEnabled: false,
-		HwThreadCountPerCore:                         0,
+		HwThreadCountPerCore:                         1,
 		Maximum:                                      100,
-		Reserve:                                      0,
-		RelativeWeight:                               100,
 		MaximumCountPerNumaNode:                      0,
 		MaximumCountPerNumaSocket:                    0,
+		Reserve:                                      0,
+		RelativeWeight:                               100,
 		EnableHostResourceProtection:                 false,
 		ExposeVirtualizationExtensions:               false,
 	}
 
 	result = append(result, vmProcessor)
 	return result, nil
-}
-
-func DiffSuppressVmProcessorMaximumCountPerNumaNode(key, old, new string, d *schema.ResourceData) bool {
-	log.Printf("[DEBUG] '[%s]' Comparing old value '[%v]' with new value '[%v]' ", key, old, new)
-	if new == "0" {
-		//We have not explicitly set a value, so allow any value as we are not tracking it
-		return true
-	}
-
-	return new == old
-}
-
-func DiffSuppressVmProcessorMaximumCountPerNumaSocket(key, old, new string, d *schema.ResourceData) bool {
-	log.Printf("[DEBUG] '[%s]' Comparing old value '[%v]' with new value '[%v]' ", key, old, new)
-	if new == "0" {
-		//We have not explicitly set a value, so allow any value as we are not tracking it
-		return true
-	}
-
-	return new == old
 }
 
 func ExpandVmProcessors(d *schema.ResourceData) ([]vmProcessor, error) {
@@ -123,7 +104,6 @@ type createOrUpdateVmProcessorArgs struct {
 
 var createOrUpdateVmProcessorTemplate = template.Must(template.New("CreateOrUpdateVmProcessor").Parse(`
 $ErrorActionPreference = 'Stop'
-Get-Vm | Out-Null
 $vmProcessor = '{{.VmProcessorJson}}' | ConvertFrom-Json
 
 $SetVMProcessorArgs = @{}
