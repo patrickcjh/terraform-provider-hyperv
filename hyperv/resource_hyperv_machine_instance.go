@@ -495,6 +495,11 @@ func resourceHyperVMachineInstance() *schema.Resource {
 							Optional: true,
 							Default:  16,
 						},
+						"vlan_id": {
+							Type:     schema.TypeInt,
+							Optional: true,
+							Default:  0,
+						},
 						"wait_for_ips": {
 							Type:     schema.TypeBool,
 							Optional: true,

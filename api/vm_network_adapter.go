@@ -200,6 +200,7 @@ func ExpandNetworkAdapters(d *schema.ResourceData) ([]vmNetworkAdapter, error) {
 				VrssEnabled:                            networkAdapter["vrss_enabled"].(bool),
 				VmmqEnabled:                            networkAdapter["vmmq_enabled"].(bool),
 				VmmqQueuePairs:                         networkAdapter["vmmq_queue_pairs"].(int),
+				VlanId:                                 networkAdapter["vlan_id"].(int),
 				WaitForIps:                             networkAdapter["wait_for_ips"].(bool),
 				IpAddresses:                            ipAddresses,
 			}
@@ -264,6 +265,7 @@ func FlattenNetworkAdapters(networkAdapters *[]vmNetworkAdapter) []interface{} {
 			flattenedNetworkAdapter["vrss_enabled"] = networkAdapter.VrssEnabled
 			flattenedNetworkAdapter["vmmq_enabled"] = networkAdapter.VmmqEnabled
 			flattenedNetworkAdapter["vmmq_queue_pairs"] = networkAdapter.VmmqQueuePairs
+			flattenedNetworkAdapter["vlan_id"] = networkAdapter.VlanId
 			flattenedNetworkAdapter["wait_for_ips"] = networkAdapter.WaitForIps
 			flattenedNetworkAdapter["ip_addresses"] = networkAdapter.IpAddresses
 
@@ -318,6 +320,7 @@ type vmNetworkAdapter struct {
 	VrssEnabled                            bool
 	VmmqEnabled                            bool
 	VmmqQueuePairs                         int
+	VlanId                                 int
 	WaitForIps                             bool
 	IpAddresses                            []string
 }
@@ -398,6 +401,7 @@ func (c *HypervClient) CreateVmNetworkAdapterExtended(
 	vrssEnabled bool,
 	vmmqEnabled bool,
 	vmmqQueuePairs int,
+	vlanId int,
 ) (err error) {
 
 	err = c.CreateVmNetworkAdapter(vmName, name, switchName, isLegacy)
@@ -443,6 +447,7 @@ func (c *HypervClient) CreateVmNetworkAdapterExtended(
 		vrssEnabled,
 		vmmqEnabled,
 		vmmqQueuePairs,
+		vlanId,
 	)
 }
 
@@ -490,6 +495,7 @@ $vmNetworkAdaptersObject = @(Get-VMNetworkAdapter -VmName '{{.VmName}}' | %{ @{
      VrssEnabled=$_.VrssEnabledRequested;
      VmmqEnabled=$_.VmmqEnabledRequested;
      VmmqQueuePairs=$_.VmmqQueuePairsRequested;
+     VlanId=$_.VLanSetting.AccessVlanId;
      IpAddresses=@($_.IpAddresses);
 }})
 
@@ -645,6 +651,7 @@ $vmNetworkAdapter.psobject.properties | ForEach-Object {
 			"SwitchName" { }
 			"ManagementOs" { }
 			"IsLegacy" { }
+			"VlanId" { }
 			"WaitForIps"{ }
 			"IpAddresses" { }
 			"StaticMacAddress"{
@@ -662,6 +669,7 @@ $vmNetworkAdapter.psobject.properties | ForEach-Object {
 }
 
 Set-VmNetworkAdapter @SetVmNetworkAdapterArgs
+Set-VmNetworkAdapterVlan -VMName '{{.VmName}}' -VMNetworkAdapterName $vmNetworkAdapter.Name -VlanId $vmNetworkAdapter.VlanId -Access
 
 `))
 
@@ -704,6 +712,7 @@ func (c *HypervClient) UpdateVmNetworkAdapter(
 	vrssEnabled bool,
 	vmmqEnabled bool,
 	vmmqQueuePairs int,
+	vlanId int,
 ) (err error) {
 
 	vmNetworkAdapterJson, err := json.Marshal(vmNetworkAdapter{
@@ -745,6 +754,7 @@ func (c *HypervClient) UpdateVmNetworkAdapter(
 		VrssEnabled:                            vrssEnabled,
 		VmmqEnabled:                            vmmqEnabled,
 		VmmqQueuePairs:                         vmmqQueuePairs,
+		VlanId:                                 vlanId,
 	})
 
 	err = c.runFireAndForgetScript(updateVmNetworkAdapterTemplate, updateVmNetworkAdapterArgs{
@@ -842,6 +852,7 @@ func (c *HypervClient) CreateOrUpdateVmNetworkAdapters(vmName string, networkAda
 			networkAdapter.VrssEnabled,
 			networkAdapter.VmmqEnabled,
 			networkAdapter.VmmqQueuePairs,
+			networkAdapter.VlanId,
 		)
 		if err != nil {
 			return err
@@ -898,6 +909,7 @@ func (c *HypervClient) CreateOrUpdateVmNetworkAdapters(vmName string, networkAda
 			networkAdapter.VrssEnabled,
 			networkAdapter.VmmqEnabled,
 			networkAdapter.VmmqQueuePairs,
+			networkAdapter.VlanId,
 		)
 
 		if err != nil {
