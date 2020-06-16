@@ -208,7 +208,7 @@ function Get-FileFromUri($Url, $FolderPath) {
 
 	$destination = (Get-Item -Path ".\" -Verbose).FullName
 	if ($FolderPath) { $destination = $FolderPath }
-	$destination = Join-Path $destination, $filename
+	$destination = Join-Path $destination $filename
 	$webclient = New-Object System.Net.webclient
 	$webclient.downloadfile($fUri.AbsoluteUri, $destination)
 }
