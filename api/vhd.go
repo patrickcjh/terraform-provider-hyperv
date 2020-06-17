@@ -179,6 +179,11 @@ function Expand-Downloads($FolderPath, $TargetPath) {
 			& cmd.exe /C $command
 		}
 
+		get-item *.tar.gz | % {
+			$command = """$7zPath"" x ""$($_.FullName)"" -so | ""$7zPath"" x -aoa -si -ttar -o""$tempPath"""
+			& cmd.exe /C $command
+		}
+
 		get-item *.box | % {
 			$command = """$7zPath"" x ""$($_.FullName)"" -so | ""$7zPath"" x -aoa -si -ttar -o""$tempPath"""
 			& cmd.exe /C $command
