@@ -211,7 +211,7 @@ type deleteVmDvdDriveArgs struct {
 var deleteVmDvdDriveTemplate = template.Must(template.New("DeleteVmDvdDrive").Parse(`
 $ErrorActionPreference = 'Stop'
 
-@(Get-VMDvdDrive -VmName '{{.VmName}}' -ControllerNumber {{.ControllerNumber}} -ControllerLocation {{.ControllerLocation}}) | Remove-VMDvdDrive -Force
+@(Get-VMDvdDrive -VmName '{{.VmName}}' -ControllerNumber {{.ControllerNumber}} -ControllerLocation {{.ControllerLocation}}) | Remove-VMDvdDrive
 `))
 
 func (c *HypervClient) DeleteVmDvdDrive(vmName string, controllerNumber int, controllerLocation int) (err error) {

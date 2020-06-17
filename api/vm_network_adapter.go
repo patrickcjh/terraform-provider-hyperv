@@ -777,7 +777,7 @@ type deleteVmNetworkAdapterArgs struct {
 var deleteVmNetworkAdapterTemplate = template.Must(template.New("DeleteVmNetworkAdapter").Parse(`
 $ErrorActionPreference = 'Stop'
 
-@(Get-VMNetworkAdapter -VmName '{{.VmName}}')[{{.Index}}] | Remove-VMNetworkAdapter -Force
+@(Get-VMNetworkAdapter -VmName '{{.VmName}}')[{{.Index}}] | Remove-VMNetworkAdapter
 `))
 
 func (c *HypervClient) DeleteVmNetworkAdapter(vmName string, index int) (err error) {

@@ -417,7 +417,7 @@ type deleteVmHardDiskDriveArgs struct {
 var deleteVmHardDiskDriveTemplate = template.Must(template.New("DeleteVmHardDiskDrive").Parse(`
 $ErrorActionPreference = 'Stop'
 
-@(Get-VMHardDiskDrive -VmName '{{.VmName}}' -ControllerNumber {{.ControllerNumber}} -ControllerLocation {{.ControllerLocation}}) | Remove-VMHardDiskDrive -Force
+@(Get-VMHardDiskDrive -VmName '{{.VmName}}' -ControllerNumber {{.ControllerNumber}} -ControllerLocation {{.ControllerLocation}}) | Remove-VMHardDiskDrive
 `))
 
 func (c *HypervClient) DeleteVmHardDiskDrive(vmname string, controllerNumber int32, controllerLocation int32) (err error) {
