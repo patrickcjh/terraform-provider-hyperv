@@ -70,10 +70,10 @@ func resourceHyperVNetworkSwitch() *schema.Resource {
 				ValidateFunc: stringKeyInMap(api.VMSwitchType_value, true),
 			},
 
-			"net_adapter_names": {
-				Type:     schema.TypeList,
-				Elem:     &schema.Schema{Type: schema.TypeString},
+			"net_adapter_name": {
+				Type:     schema.TypeString,
 				Optional: true,
+				Default: "",
 			},
 
 			"default_flow_minimum_bandwidth_absolute": {
@@ -130,12 +130,7 @@ func resourceHyperVNetworkSwitchCreate(d *schema.ResourceData, meta interface{})
 	packetDirectEnabled := (d.Get("enable_packet_direct")).(bool)
 	bandwidthReservationMode := api.ToVMSwitchBandwidthMode((d.Get("minimum_bandwidth_mode")).(string))
 	switchType := api.ToVMSwitchType((d.Get("switch_type")).(string))
-	netAdapterNames := []string{}
-	if raw, ok := d.GetOk("net_adapter_names"); ok {
-		for _, v := range raw.([]interface{}) {
-			netAdapterNames = append(netAdapterNames, v.(string))
-		}
-	}
+	netAdapterName := (d.Get("net_adapter_name")).(string)
 	defaultFlowMinimumBandwidthAbsolute := int64((d.Get("default_flow_minimum_bandwidth_absolute")).(int))
 	defaultFlowMinimumBandwidthWeight := int64((d.Get("default_flow_minimum_bandwidth_weight")).(int))
 	defaultQueueVmmqEnabled := (d.Get("default_queue_vmmq_enabled")).(bool)
@@ -147,20 +142,20 @@ func resourceHyperVNetworkSwitchCreate(d *schema.ResourceData, meta interface{})
 			return fmt.Errorf("[ERROR][hyperv][create] Unable to set AllowManagementOS to true if switch type is private")
 		}
 
-		if len(netAdapterNames) > 0 {
-			return fmt.Errorf("[ERROR][hyperv][create] Unable to set NetAdapterNames when switch type is private")
+		if netAdapterName != "" {
+			return fmt.Errorf("[ERROR][hyperv][create] Unable to set NetAdapterName when switch type is private")
 		}
 	} else if switchType == api.VMSwitchType_Internal {
 		if allowManagementOS == false {
 			return fmt.Errorf("[ERROR][hyperv][create] Unable to set AllowManagementOS to false if switch type is internal")
 		}
 
-		if len(netAdapterNames) > 0 {
-			return fmt.Errorf("[ERROR][hyperv][create] Unable to set NetAdapterNames when switch type is internal")
+		if netAdapterName != ""{
+			return fmt.Errorf("[ERROR][hyperv][create] Unable to set NetAdapterName when switch type is internal")
 		}
 	} else if switchType == api.VMSwitchType_External {
-		if len(netAdapterNames) < 1 {
-			return fmt.Errorf("[ERROR][hyperv][create] Must specify NetAdapterNames if switch type is external")
+		if netAdapterName == "" {
+			return fmt.Errorf("[ERROR][hyperv][create] Must specify NetAdapterName if switch type is external")
 		}
 	}
 
@@ -191,7 +186,7 @@ func resourceHyperVNetworkSwitchCreate(d *schema.ResourceData, meta interface{})
 		return fmt.Errorf("[ERROR][hyperv][create] defaultQueueVmmqQueuePairs must be greater then 0")
 	}
 
-	err = c.CreateVMSwitch(switchName, allowManagementOS, embeddedTeamingEnabled, iovEnabled, packetDirectEnabled, bandwidthReservationMode, switchType, netAdapterNames)
+	err = c.CreateVMSwitch(switchName, allowManagementOS, embeddedTeamingEnabled, iovEnabled, packetDirectEnabled, bandwidthReservationMode, switchType, netAdapterName)
 
 	if err != nil {
 		return err
@@ -199,7 +194,7 @@ func resourceHyperVNetworkSwitchCreate(d *schema.ResourceData, meta interface{})
 
 	d.SetId(switchName)
 
-	err = c.UpdateVMSwitch(switchName, notes, allowManagementOS, switchType, netAdapterNames, defaultFlowMinimumBandwidthAbsolute, defaultFlowMinimumBandwidthWeight, defaultQueueVmmqEnabled, defaultQueueVmmqQueuePairs, defaultQueueVrssEnabled)
+	err = c.UpdateVMSwitch(switchName, notes, allowManagementOS, switchType, netAdapterName, defaultFlowMinimumBandwidthAbsolute, defaultFlowMinimumBandwidthWeight, defaultQueueVmmqEnabled, defaultQueueVmmqQueuePairs, defaultQueueVrssEnabled)
 	if err != nil {
 		return err
 	}
@@ -242,7 +237,7 @@ func resourceHyperVNetworkSwitchRead(d *schema.ResourceData, meta interface{}) (
 	d.Set("enable_packet_direct", s.PacketDirectEnabled)
 	d.Set("minimum_bandwidth_mode", s.BandwidthReservationMode.String())
 	d.Set("switch_type", s.SwitchType.String())
-	d.Set("net_adapter_names", s.NetAdapterNames)
+	d.Set("net_adapter_name", s.NetAdapterName)
 	d.Set("default_flow_minimum_bandwidth_absolute", s.DefaultFlowMinimumBandwidthAbsolute)
 	d.Set("default_flow_minimum_bandwidth_weight", s.DefaultFlowMinimumBandwidthWeight)
 	d.Set("default_queue_vmmq_enabled", s.DefaultQueueVmmqEnabled)
@@ -254,20 +249,20 @@ func resourceHyperVNetworkSwitchRead(d *schema.ResourceData, meta interface{}) (
 			return fmt.Errorf("[ERROR][hyperv][read] Unable to set AllowManagementOS to true if switch type is private")
 		}
 
-		if len(s.NetAdapterNames) > 0 {
-			return fmt.Errorf("[ERROR][hyperv][read] Unable to set NetAdapterNames when switch type is private")
+		if s.NetAdapterName != "" {
+			return fmt.Errorf("[ERROR][hyperv][read] Unable to set NetAdapterName when switch type is private")
 		}
 	} else if s.SwitchType == api.VMSwitchType_Internal {
 		if s.AllowManagementOS == false {
 			return fmt.Errorf("[ERROR][hyperv][read] Unable to set AllowManagementOS to false if switch type is internal")
 		}
 
-		if len(s.NetAdapterNames) > 0 {
-			return fmt.Errorf("[ERROR][hyperv][read] Unable to set NetAdapterNames when switch type is internal")
+		if s.NetAdapterName != "" {
+			return fmt.Errorf("[ERROR][hyperv][read] Unable to set NetAdapterName when switch type is internal")
 		}
 	} else if s.SwitchType == api.VMSwitchType_External {
-		if len(s.NetAdapterNames) < 1 {
-			return fmt.Errorf("[ERROR][hyperv][read] Must specify NetAdapterNames if switch type is external")
+		if s.NetAdapterName == "" {
+			return fmt.Errorf("[ERROR][hyperv][read] Must specify NetAdapterName if switch type is external")
 		}
 	}
 
@@ -326,12 +321,7 @@ func resourceHyperVNetworkSwitchUpdate(d *schema.ResourceData, meta interface{})
 	//packetDirectEnabled := (d.Get("enable_packet_direct")).(bool)
 	bandwidthReservationMode := api.ToVMSwitchBandwidthMode((d.Get("minimum_bandwidth_mode")).(string))
 	switchType := api.ToVMSwitchType((d.Get("switch_type")).(string))
-	netAdapterNames := []string{}
-	if raw, ok := d.GetOk("net_adapter_names"); ok {
-		for _, v := range raw.([]interface{}) {
-			netAdapterNames = append(netAdapterNames, v.(string))
-		}
-	}
+	netAdapterName := (d.Get("net_adapter_name")).(string)
 	defaultFlowMinimumBandwidthAbsolute := int64((d.Get("default_flow_minimum_bandwidth_absolute")).(int))
 	defaultFlowMinimumBandwidthWeight := int64((d.Get("default_flow_minimum_bandwidth_weight")).(int))
 	defaultQueueVmmqEnabled := (d.Get("default_queue_vmmq_enabled")).(bool)
@@ -343,20 +333,20 @@ func resourceHyperVNetworkSwitchUpdate(d *schema.ResourceData, meta interface{})
 			return fmt.Errorf("[ERROR][hyperv][update] Unable to set AllowManagementOS to true if switch type is private")
 		}
 
-		if len(netAdapterNames) > 0 {
-			return fmt.Errorf("[ERROR][hyperv][update] Unable to set NetAdapterNames when switch type is private")
+		if netAdapterName != "" {
+			return fmt.Errorf("[ERROR][hyperv][update] Unable to set NetAdapterName when switch type is private")
 		}
 	} else if switchType == api.VMSwitchType_Internal {
 		if allowManagementOS == false {
 			return fmt.Errorf("[ERROR][hyperv][update] Unable to set AllowManagementOS to false if switch type is internal")
 		}
 
-		if len(netAdapterNames) > 0 {
-			return fmt.Errorf("[ERROR][hyperv][update] Unable to set NetAdapterNames when switch type is internal")
+		if netAdapterName != "" {
+			return fmt.Errorf("[ERROR][hyperv][update] Unable to set NetAdapterName when switch type is internal")
 		}
 	} else if switchType == api.VMSwitchType_External {
-		if len(netAdapterNames) < 1 {
-			return fmt.Errorf("[ERROR][hyperv][update] Must specify NetAdapterNames if switch type is external")
+		if netAdapterName == "" {
+			return fmt.Errorf("[ERROR][hyperv][update] Must specify NetAdapterName if switch type is external")
 		}
 	}
 
@@ -387,7 +377,7 @@ func resourceHyperVNetworkSwitchUpdate(d *schema.ResourceData, meta interface{})
 		return fmt.Errorf("[ERROR][hyperv][update] defaultQueueVmmqQueuePairs must be greater then 0")
 	}
 
-	err = c.UpdateVMSwitch(switchName, notes, allowManagementOS, switchType, netAdapterNames, defaultFlowMinimumBandwidthAbsolute, defaultFlowMinimumBandwidthWeight, defaultQueueVmmqEnabled, defaultQueueVmmqQueuePairs, defaultQueueVrssEnabled)
+	err = c.UpdateVMSwitch(switchName, notes, allowManagementOS, switchType, netAdapterName, defaultFlowMinimumBandwidthAbsolute, defaultFlowMinimumBandwidthWeight, defaultQueueVmmqEnabled, defaultQueueVmmqQueuePairs, defaultQueueVrssEnabled)
 
 	if err != nil {
 		return err

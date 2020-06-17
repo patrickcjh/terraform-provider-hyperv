@@ -132,7 +132,7 @@ type vmSwitch struct {
 	PacketDirectEnabled                 bool
 	BandwidthReservationMode            VMSwitchBandwidthMode
 	SwitchType                          VMSwitchType
-	NetAdapterNames                     []string
+	NetAdapterName                      string
 	DefaultFlowMinimumBandwidthAbsolute int64
 	DefaultFlowMinimumBandwidthWeight   int64
 	DefaultQueueVmmqEnabled             bool
@@ -151,7 +151,6 @@ Import-Module Hyper-V
 $vmSwitch = '{{.VmSwitchJson}}' | ConvertFrom-Json
 $minimumBandwidthMode = [Microsoft.HyperV.PowerShell.VMSwitchBandwidthMode]$vmSwitch.BandwidthReservationMode
 $switchType = [Microsoft.HyperV.PowerShell.VMSwitchType]$vmSwitch.SwitchType
-$NetAdapterNames = @($vmSwitch.$NetAdapterNames)
 #when EnablePacketDirect=true it seems to throw an exception if EnableIov=true or EnableEmbeddedTeaming=true
 
 $switchObject = Get-VMSwitch | ?{$_.Name -eq $vmSwitch.Name}
@@ -167,9 +166,9 @@ $NewVmSwitchArgs.EnableEmbeddedTeaming=$vmSwitch.EmbeddedTeamingEnabled
 $NewVmSwitchArgs.EnableIov=$vmSwitch.IovEnabled
 $NewVmSwitchArgs.EnablePacketDirect=$vmSwitch.PacketDirectEnabled
 
-if ($NetAdapterNames) {
+if ($vmSwitch.NetAdapterName) {
 	$NewVmSwitchArgs.AllowManagementOS=$vmSwitch.AllowManagementOS
-	$NewVmSwitchArgs.NetAdapterName=$NetAdapterNames
+	$NewVmSwitchArgs.NetAdapterName=$vmSwitch.NetAdapterName
 } else {
 	$NewVmSwitchArgs.SwitchType=$switchType
 	#not used unless interface is specified
@@ -187,7 +186,7 @@ func (c *HypervClient) CreateVMSwitch(
 	packetDirectEnabled bool,
 	bandwidthReservationMode VMSwitchBandwidthMode,
 	switchType VMSwitchType,
-	netAdapterNames []string,
+	netAdapterName string,
 ) (err error) {
 
 	vmSwitchJson, err := json.Marshal(vmSwitch{
@@ -198,7 +197,7 @@ func (c *HypervClient) CreateVMSwitch(
 		PacketDirectEnabled:      packetDirectEnabled,
 		BandwidthReservationMode: bandwidthReservationMode,
 		SwitchType:               switchType,
-		NetAdapterNames:          netAdapterNames,
+		NetAdapterName:           netAdapterName,
 	})
 
 	err = c.runFireAndForgetScript(createVMSwitchTemplate, createVMSwitchArgs{
@@ -223,7 +222,7 @@ $vmSwitchObject = Get-VMSwitch | ?{$_.Name -eq '{{.Name}}' } | %{ @{
 	PacketDirectEnabled=$_.PacketDirectEnabled;
 	BandwidthReservationMode=$_.BandwidthReservationMode;
 	SwitchType=$_.SwitchType;
-	NetAdapterNames=@(if($_.NetAdapterInterfaceDescriptions){@(Get-NetAdapter -InterfaceDescription $_.NetAdapterInterfaceDescriptions | %{$_.Name})});
+	NetAdapterName=if($_.NetAdapterInterfaceDescription){Get-NetAdapter -InterfaceDescription $_.NetAdapterInterfaceDescription | %{$_.Name}};
 	DefaultFlowMinimumBandwidthAbsolute=$_.DefaultFlowMinimumBandwidthAbsolute;
 	DefaultFlowMinimumBandwidthWeight=$_.DefaultFlowMinimumBandwidthWeight;
 	DefaultQueueVmmqEnabled=$_.DefaultQueueVmmqEnabledRequested;
@@ -258,7 +257,6 @@ Import-Module Hyper-V
 $vmSwitch = '{{.VmSwitchJson}}' | ConvertFrom-Json
 $minimumBandwidthMode = [Microsoft.HyperV.PowerShell.VMSwitchBandwidthMode]$vmSwitch.BandwidthReservationMode
 $switchType = [Microsoft.HyperV.PowerShell.VMSwitchType]$vmSwitch.SwitchType
-$NetAdapterNames = @($vmSwitch.$NetAdapterNames)
 #when EnablePacketDirect=true it seems to throw an exception if EnableIov=true or EnableEmbeddedTeaming=true
 
 $switchObject = Get-VMSwitch | ?{$_.Name -eq $vmSwitch.Name}
@@ -270,9 +268,9 @@ if (!$switchObject){
 $SetVmSwitchArgs = @{}
 $SetVmSwitchArgs.Name=$vmSwitch.Name
 $SetVmSwitchArgs.Notes=$vmSwitch.Notes
-if ($NetAdapterNames) {
+if ($vmSwitch.NetAdapterName) {
 	$SetVmSwitchArgs.AllowManagementOS=$vmSwitch.AllowManagementOS
-	$SetVmSwitchArgs.NetAdapterName=$NetAdapterNames
+	$SetVmSwitchArgs.NetAdapterName=$vmSwitch.NetAdapterName
 	#Updates not supported on:
 	#-EnableEmbeddedTeaming $vmSwitch.EmbeddedTeamingEnabled
 	#-EnableIov $vmSwitch.IovEnabled
@@ -312,7 +310,7 @@ func (c *HypervClient) UpdateVMSwitch(
 	//packetDirectEnabled bool,
 	//bandwidthReservationMode VMSwitchBandwidthMode,
 	switchType VMSwitchType,
-	netAdapterNames []string,
+	netAdapterName string,
 	defaultFlowMinimumBandwidthAbsolute int64,
 	defaultFlowMinimumBandwidthWeight int64,
 	defaultQueueVmmqEnabled bool,
@@ -329,7 +327,7 @@ func (c *HypervClient) UpdateVMSwitch(
 		//PacketDirectEnabled:packetDirectEnabled,
 		//BandwidthReservationMode:bandwidthReservationMode,
 		SwitchType:                          switchType,
-		NetAdapterNames:                     netAdapterNames,
+		NetAdapterName:                      netAdapterName,
 		DefaultFlowMinimumBandwidthAbsolute: defaultFlowMinimumBandwidthAbsolute,
 		DefaultFlowMinimumBandwidthWeight:   defaultFlowMinimumBandwidthWeight,
 		DefaultQueueVmmqEnabled:             defaultQueueVmmqEnabled,
