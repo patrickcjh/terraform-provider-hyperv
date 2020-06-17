@@ -538,7 +538,7 @@ function Wait-ForNetworkAdapterIps($VmName, $Timeout, $PollPeriod, $VmNetworkAda
 
         $waitForIp = $false
 
-        $VmNetworkAdaptersToWaitForIps | %{
+        $VmNetworkAdaptersToWaitForIps | ?{$_.WaitForIps} | %{
             $name = $_.Name
             $ipAddresses = @($vmObject.NetworkAdapters | ?{$_.Name -eq $name} | %{$_.IPAddresses} |?{$_})
 

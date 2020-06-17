@@ -268,6 +268,7 @@ type createNewVhdArgs struct {
 var createNewVhdTemplate = template.Must(template.New("CreateNewVhd").Parse(`
 $ErrorActionPreference = 'Stop'
 
+Import-Module Hyper-V
 $sourceDisk = {{.SourceDisk}}
 $vhd = '{{.VhdJson}}' | ConvertFrom-Json
 $vhdType = [Microsoft.Vhd.PowerShell.VhdType]$vhd.VhdType
