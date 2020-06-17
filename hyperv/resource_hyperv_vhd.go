@@ -60,18 +60,17 @@ func resourceHyperVVhd() *schema.Resource {
 				ConflictsWith: []string{
 					"source",
 					"source_vm",
-					"parent_path",
 				},
 			},
 			"parent_path": {
 				Type:     schema.TypeString,
 				Optional: true,
 				Default:  "",
+				ForceNew: true,
 				ConflictsWith: []string{
 					"source",
 					"source_vm",
 					"source_disk",
-					"size",
 				},
 			},
 			"size": {
@@ -79,9 +78,6 @@ func resourceHyperVVhd() *schema.Resource {
 				Optional: true,
 				Computed: true,
 				Default:  nil,
-				ConflictsWith: []string{
-					"parent_path",
-				},
 			},
 			"block_size": {
 				Type:     schema.TypeInt,
@@ -154,7 +150,7 @@ func resourceHyperVVhdCreate(d *schema.ResourceData, meta interface{}) (err erro
 
 	d.SetId(name)
 
-	if size > 0 && parentPath == "" {
+	if size > 0 {
 		//Update vhd size
 		err = c.ResizeVhd(path, size)
 
@@ -241,7 +237,7 @@ func resourceHyperVVhdUpdate(d *schema.ResourceData, meta interface{}) (err erro
 		}
 	}
 
-	if d.HasChange("size") && size > 0 && parentPath == "" {
+	if d.HasChange("size") && size > 0 {
 		//Update vhd size
 		err = c.ResizeVhd(path, size)
 
