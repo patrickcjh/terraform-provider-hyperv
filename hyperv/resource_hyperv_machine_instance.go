@@ -535,7 +535,7 @@ func resourceHyperVMachineInstance() *schema.Resource {
 						"resource_pool_name": {
 							Type:     schema.TypeString,
 							Optional: true,
-							Default:  "",
+							Default:  "Primordial",
 						},
 					},
 				},
