@@ -177,6 +177,10 @@ function Expand-Downloads($FolderPath, $TargetPath) {
 			& cmd.exe /C """$7zPath"" x ""$($_.FullName)"" -so | ""$7zPath"" x -aoa -si -ttar -o""$tempPath"""
 		}
 
+		get-item *.img | % {
+			& cmd.exe /C "qemu-img convert -O vhdx ""$($_.FullName)"" ""$($_.FullName -replace '.img$', '.vhdx')"""
+		}
+
 		get-item *.vhd, *.vhdx | % { Move-Item $_.FullName $TargetPath -Force }
 
 		$sourceFolder = if (Test-Path "$tempPath\Virtual Hard Disks") { "$tempPath\Virtual Hard Disks" } else { $tempPath }
