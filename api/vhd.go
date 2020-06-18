@@ -169,29 +169,15 @@ function Expand-Downloads($FolderPath, $TargetPath) {
 	try {
 		$7zPath = Get-7ZipPath
 		if (-not $7zPath) { throw "7z.exe needed" }
-		get-item *.zip | % {
-			$command = """$7zPath"" x ""$($_.FullName)"" -o""$tempPath"""
-			& cmd.exe /C $command
+		get-item *.zip, *.7z | % {
+			& cmd.exe /C """$7zPath"" x ""$($_.FullName)"" -o""$tempPath"""
 		}
 
-		get-item *.7z | % {
-			$command = """$7zPath"" x ""$($_.FullName)"" -o""$tempPath"""
-			& cmd.exe /C $command
+		get-item *.tar.gz, *.box | % {
+			& cmd.exe /C """$7zPath"" x ""$($_.FullName)"" -so | ""$7zPath"" x -aoa -si -ttar -o""$tempPath"""
 		}
 
-		get-item *.tar.gz | % {
-			$command = """$7zPath"" x ""$($_.FullName)"" -so | ""$7zPath"" x -aoa -si -ttar -o""$tempPath"""
-			& cmd.exe /C $command
-		}
-
-		get-item *.box | % {
-			$command = """$7zPath"" x ""$($_.FullName)"" -so | ""$7zPath"" x -aoa -si -ttar -o""$tempPath"""
-			& cmd.exe /C $command
-		}
-
-		get-item *.vhdx | % { Move-Item $_.FullName $TargetPath -Force }
-
-		get-item *.vhd | % { Move-Item $_.FullName $TargetPath -Force }
+		get-item *.vhd, *.vhdx | % { Move-Item $_.FullName $TargetPath -Force }
 
 		$sourceFolder = if (Test-Path "$tempPath\Virtual Hard Disks") { "$tempPath\Virtual Hard Disks" } else { $tempPath }
 		Get-ChildItem -Path $sourceFolder -Force | Select-Object -First 1 | Move-Item -Destination $TargetPath
