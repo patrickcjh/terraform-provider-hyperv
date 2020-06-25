@@ -301,6 +301,7 @@ func resourceHyperVMachineInstance() *schema.Resource {
 						"name": {
 							Type:     schema.TypeString,
 							Required: true,
+							ForceNew: true,
 						},
 						"switch_name": {
 							Type:     schema.TypeString,
